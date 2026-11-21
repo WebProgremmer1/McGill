@@ -127,3 +127,13 @@ button[aria-disabled="true"] { background: #526557; cursor: default; }
   .section-title { flex-wrap: wrap; }
   .panel, .next-card, .check-in { min-width: 0; }
 }
+.trip-card { max-width: 52rem; margin: 0 auto; padding: clamp(1.4rem, 5vw, 3.5rem); }
+.trip-card h1 { max-width: 24ch; }
+.trip-card .eyebrow { color: #38503e; font-size: .875rem; }
+.help-panel { margin-bottom: 24px; }
+.help-panel p { margin-top: 8px; color: var(--secondary-text); }
+.help-panel.has-request { border-left: 6px solid #85501d; }
+.trip-card .check-in-actions { gap: 14px; }
+@media (max-width: 700px) {
+  .trip-card .button { width: 100%; }
+}
