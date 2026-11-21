@@ -90,8 +90,6 @@ input[type=text]:focus{outline:2px solid var(--accent);outline-offset:-1px}
 #map{width:100%;height:min(68vh,600px);min-height:380px;border-radius:8px;background:var(--grid)}
 #map.armed{outline:3px solid var(--accent);outline-offset:-3px}
 .mapmsg{display:grid;place-items:center;height:100%;padding:24px;text-align:center;color:var(--muted)}
-.legend{display:flex;flex-wrap:wrap;gap:4px 14px;padding:2px 6px;font-size:12px;color:var(--muted)}
-.legend i{display:inline-block;width:16px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
 .panel{padding:16px;display:grid;gap:14px}
 .scoreline{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
 .score{font-family:var(--f-display);font-size:58px;line-height:.9;font-weight:700;font-variant-numeric:tabular-nums}
@@ -168,14 +166,6 @@ dl.stats dd{margin:0;font-family:var(--f-mono);font-size:14px}
   <section class="stage">
     <div class="card mapcard">
       <div id="map"><div class="mapmsg">Loading Google Maps…</div></div>
-      <div class="legend">
-        <span><i style="background:var(--accent);height:4px"></i>Planned route</span>
-        <span><i style="background:rgba(47,93,134,.45)"></i>On route (50 m)</span>
-        <span><i style="background:rgba(47,93,134,.25)"></i>A little off (150 m)</span>
-        <span><i style="background:rgba(47,93,134,.1)"></i>Off (300 m), beyond is far off</span>
-        <span><i style="background:var(--zone);opacity:.4"></i>Safe zones (75 m)</span>
-        <span><i style="background:var(--low)"></i><i style="background:var(--med)"></i><i style="background:var(--high)"></i>Walk, coloured by risk</span>
-      </div>
     </div>
     <aside class="card panel" aria-live="polite">
       <div>
@@ -223,7 +213,7 @@ dl.stats dd{margin:0;font-family:var(--f-mono);font-size:14px}
 
   <div class="card bar">
     <div class="status" id="status">Plan a route, then pick a scenario.</div>
-    <label>Delay per point <input type="range" id="speed" min="80" max="900" value="350"></label>
+    <label>Playback speed <input type="range" id="speed" min="80" max="900" value="630"></label>
     <button class="btn" id="stop" type="button">Stop</button>
   </div>
 
@@ -623,7 +613,7 @@ async function run(sc) {
     if (me.stop) return;
     $("status").innerHTML = `<b>${sc.title}</b> · GPS point ${i + 1} of ${pts.length}`;
     await step(toLatLng(pts[i]), i * 0.5);
-    await sleep(+$("speed").value);
+    await sleep(980 - $("speed").value);   // slider right = faster = shorter wait between points
   }
   if (me.stop) return;
   await post(`/journeys/${walk.id}/complete`).catch(() => {});
