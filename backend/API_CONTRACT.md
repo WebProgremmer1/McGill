@@ -29,6 +29,8 @@ Score is **recalculated from current conditions on every update** (not accumulat
 | `repeated_revisits` | 15 per return, max 30 | Times she came back to her current spot (within 30 m) |
 | `left_safe_zone`    | 15 | Reached a safe zone (not the start/Home zone) and then left it |
 | `taking_too_long`   | 2 per minute over the allowed time, max 30 | Allowed time = 1.5 × (`expected_arrival` − `started_at`). Stops once she reaches the destination |
+| `ignored_checkin`   | 15 | A check-in has been unanswered for 2+ minutes and she has moved more than 25 m since it was sent. Any answer removes it |
+| `said_okay`         | −15 | For the rest of the walk once she answers "I'm okay" (does not stack; score never below 0) |
 
 See the README for the full rules.
 
@@ -115,7 +117,7 @@ Response:
     "recommended_action": "contextual_check_in", "help_requested": false,
     "evaluated_at": "2026-01-01T09:13:00Z", "disclaimer": "…"
   },
-  "checkin_created": { "id": "chk_…", "status": "open", "message": "Hi Margaret, …", "options": ["I'm okay","Show me the way","I need help"], … },
+  "checkin_created": { "id": "chk_…", "status": "open", "message": "Hi Margaret, …", "options": ["I'm okay","I need help"], … },
   "alert_created": null,
   "deduplicated": false
 }
@@ -126,7 +128,7 @@ Response:
 ```json
 { "id": "chk_9f8e7d6c", "journey_id": "jrn_…", "created_at": "2026-01-01T09:13:00Z",
   "status": "open", "message": "Hi Margaret, you're on your way to Tim Hortons. …",
-  "options": ["I'm okay", "Show me the way", "I need help"],
+  "options": ["I'm okay", "I need help"],
   "risk_score": 48, "reason_codes": ["off_route","repeated_revisits"],
   "response": null, "answered_at": null }
 ```
@@ -138,6 +140,9 @@ Answer the latest open check-in (or the one in `checkin_id`):
 { "response": "I'm okay" }
 ```
 → `{ "journey_id": "…", "risk": {…}, "checkin": { …"status":"answered" }, "alert": null, "deduplicated": false }`
+
+When the answer is "I'm okay", `risk` already includes the −15, and `alert` is a caregiver notice:
+`{ "type": "said_okay", "priority": "info", "message": "Margaret answered \"I'm okay\" at 2:36 PM, 6 min into the walk to Tim Hortons. Risk is now 26/100.", … }`
 
 Explicit help request (immediate critical alert; repeating while unacknowledged returns the same alert with `deduplicated: true`):
 ```json
@@ -159,7 +164,7 @@ No body. Sets `status` to `completed` / `cancelled`; open check-ins become `clos
   "location": { "latitude": …, "longitude": …, "timestamp": "…" },
   "created_at": "2026-01-01T09:20:00Z", "acknowledged": false, "acknowledged_at": null }
 ```
-`type`: `risk` | `help_request`; `priority`: `high` | `critical`.
+`type`: `risk` | `help_request` | `said_okay`; `priority`: `info` | `high` | `critical`.
 Only **one** unacknowledged risk alert exists per journey, and no new one is raised while the risk stays high.
 
 ## `POST /api/alerts/{id}/acknowledge` → `Alert`

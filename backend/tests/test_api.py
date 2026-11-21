@@ -231,6 +231,49 @@ def test_answering_checkin(client):
     assert r.status_code == 404 and r.json()["error"]["code"] == "no_open_checkin"
 
 
+def test_im_okay_takes_off_15_for_good_and_tells_caregiver(client, journey):
+    send(client, journey["id"], *HOME, 0)
+    far = far_off_route(0, -1000)
+    res = send(client, journey["id"], *far, 1)                 # far off route: 40 -> medium, check-in
+    assert res["checkin_created"]["options"] == ["I'm okay", "I need help"]
+    r = client.post(f"/api/journeys/{journey['id']}/checkin", json={"response": "I'm okay"}).json()
+    assert r["risk"]["score"] == 25                            # 40 - 15
+    assert r["alert"]["type"] == "said_okay" and r["alert"]["priority"] == "info"
+    assert "I'm okay" in r["alert"]["message"] and "1 min into the walk" in r["alert"]["message"]
+    res = send(client, journey["id"], *offset_point(*far, 40, 0), 5)
+    assert points(res, "said_okay") == -15
+    res = send(client, journey["id"], *offset_point(*far, 80, 0), 20)
+    assert points(res, "said_okay") == -15                     # still there 19 min later: it doesn't wear off
+    assert res["risk"]["level"] == "high"                      # 40 + 38 - 15: really lost, caregiver alerted anyway
+
+
+def test_no_answer_while_walking_adds_15(client, journey):
+    send(client, journey["id"], *HOME, 0)
+    far = far_off_route(0, -1000)
+    assert send(client, journey["id"], *far, 1)["checkin_created"]   # phone asks "Are you okay?"
+    res = send(client, journey["id"], *offset_point(*far, 40, 0), 2)
+    assert "ignored_checkin" not in codes(res)                 # only 1 min: give her time
+    res = send(client, journey["id"], *offset_point(*far, 80, 0), 4)
+    assert points(res, "ignored_checkin") == 15                # 3 min, no answer, kept walking
+    r = client.post(f"/api/journeys/{journey['id']}/checkin", json={"response": "I'm okay"}).json()
+    assert "ignored_checkin" not in [x["code"] for x in r["risk"]["reasons"]]   # she answered
+
+
+def test_no_answer_but_not_moving_is_left_to_standing_still(client, journey):
+    send(client, journey["id"], *HOME, 0)
+    far = far_off_route(0, -1000)
+    send(client, journey["id"], *far, 1)
+    res = send(client, journey["id"], *far, 4)
+    assert "ignored_checkin" not in codes(res) and "stationary" in codes(res)
+
+
+def test_other_answers_do_not_take_points_off(client, journey):
+    send(client, journey["id"], *HOME, 0)
+    send(client, journey["id"], *far_off_route(0, -1000), 1)
+    r = client.post(f"/api/journeys/{journey['id']}/checkin", json={"response": "Not sure"}).json()
+    assert r["risk"]["score"] == 40 and r["alert"] is None
+
+
 def test_explicit_help_request_creates_critical_alert_and_dedupes(client, journey):
     r = client.post(f"/api/journeys/{journey['id']}/checkin", json={"help_requested": True})
     assert r.status_code == 200
@@ -306,9 +349,9 @@ def test_full_demo_simulation():
     assert levels[0] == "low" and "medium" in levels and levels[-1] == "high"
     assert levels.index("medium") < levels.index("high")
     s = out["summary"]
-    assert s["first_medium_at_minute"] == 7 and s["first_high_at_minute"] == 10
+    assert s["first_medium_at_minute"] == 7 and s["first_high_at_minute"] == 9   # check-in ignored -> +15
     assert s["checkins_created"] == 1 and s["alerts_created"] == 1
-    assert out["steps"][-1]["score"] == 96  # off route (40 + 26) + standing still (15) + loop (15)
+    assert out["steps"][-1]["score"] == 100  # off route + standing still + loop + ignored check-in, capped
 
 
 def test_demo_endpoint_populates_store(client):

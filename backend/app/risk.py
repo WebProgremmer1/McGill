@@ -135,14 +135,42 @@ def level_for(score: int) -> str:
 ACTIONS = {"low": "continue_monitoring", "medium": "contextual_check_in", "high": "caregiver_alert"}
 
 
+# ---------------------------------------------------------------- her answers
+def ignored_checkin(j: Journey) -> RiskReason | None:
+    """+15 if the phone asked "Are you okay?", she hasn't answered for 2+ minutes,
+    and she kept walking (if she stopped, the standing-still rule covers it)."""
+    if j.checkin_sent_at is None:
+        return None
+    minutes = (j.reference_time() - j.checkin_sent_at).total_seconds() / 60
+    if minutes < 2:
+        return None
+    if distance_m(j.track[-1], j.checkin_sent_where) <= 25:
+        return None  # hasn't moved since the question
+    return RiskReason(code="ignored_checkin", points=15,
+                      description=f"Hasn't answered the check-in for {minutes:.0f} min and kept walking.")
+
+
+def said_okay(j: Journey, score: int) -> RiskReason | None:
+    """-15 points for the rest of the walk once she answers "I'm okay".
+    Answering again never takes off more than 15."""
+    if j.okay_at is None or score <= 0:
+        return None
+    minute = (j.okay_at - j.started_at).total_seconds() / 60
+    return RiskReason(code="said_okay", points=-15,
+                      description=f"Said she was okay at minute {minute:.0f}.")
+
+
 def assess(j: Journey) -> RiskAssessment:
     reasons = []
     if j.track:
-        for rule in (off_route, standing_still, going_in_loops, left_safe_zone, taking_too_long):
+        for rule in (off_route, standing_still, going_in_loops, left_safe_zone, taking_too_long, ignored_checkin):
             reason = rule(j)
             if reason:
                 reasons.append(reason)
-    score = min(100, sum(r.points for r in reasons))
+    okay = said_okay(j, sum(r.points for r in reasons))
+    if okay:
+        reasons.append(okay)
+    score = max(0, min(100, sum(r.points for r in reasons)))
     level = level_for(score)
     action = "immediate_caregiver_alert" if j.help_requested else ACTIONS[level]
     return RiskAssessment(score=score, level=level, reasons=reasons,
