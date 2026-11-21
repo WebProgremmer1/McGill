@@ -124,6 +124,30 @@ someone who stays on the route but is very slow, or keeps stopping for short bre
 Example: a 10-minute walk is free until minute 15. At minute 20 she gets
 (20 - 15) x 2 = **10 points**. At minute 30 or later she gets the maximum, **30 points**.
 
+### Her answer to "Are you okay?"
+
+When the score reaches 30, her phone asks "Are you okay?". She can answer **I'm okay** or **I need help**.
+
+| What she does | Points |
+|---|---|
+| Answers **I'm okay** | **−15 for the rest of the walk** (answering again doesn't take off more) |
+| **Doesn't answer** for 2+ minutes and keeps walking | **+15** until she answers |
+| Doesn't answer but is standing still | nothing extra (the standing-still rule already counts it) |
+| Answers **I need help** | urgent alert to the caregiver straight away |
+
+* When she says "I'm okay", the caregiver gets a message with the time, for example
+  *"Margaret answered "I'm okay" at 2:36 PM, 6 min into the walk to Tim Hortons."*
+  Her phone also confirms: *"Thank you, Margaret. We told your caregiver you said you're okay at 2:36 PM."*
+* The score never goes below 0.
+
+Why only 15 points: people with Alzheimer's often don't notice when they are confused, so
+"I'm okay" might not be true. If she is really lost, the other rules still push the score past 60
+and the caregiver is alerted.
+
+Example: 200 m off route for 8 minutes = 25 + 16 = **41** (check-in). She answers "I'm okay": **26**.
+Ten minutes later she is still off route: 25 + 36 − 15 = **46**. After 20 minutes off route the time
+part maxes out: 25 + 40 − 15 = **50**, so if she also goes in a loop or stops, the caregiver is alerted.
+
 ### What the score does
 
 | Score | Level | What happens |
