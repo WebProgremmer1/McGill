@@ -199,6 +199,7 @@ class Journey(BaseModel):
 
     # internal bookkeeping (not sent to clients)
     high_alert_latched: bool = Field(False, exclude=True)
+    critical_latched: bool = Field(False, exclude=True)  # 90+ "email everyone" already sent
     last_checkin_at: datetime | None = Field(None, exclude=True)
     okay_at: datetime | None = Field(None, exclude=True)  # when she answered "I'm okay"
     checkin_sent_at: datetime | None = Field(None, exclude=True)  # unanswered check-in: when it was sent

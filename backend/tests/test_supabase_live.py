@@ -70,3 +70,24 @@ def test_google_account_upsert(live):
     assert row["refresh_token_enc"] == "enc-2" and row["scopes"] == ["openid", "email"]
     store.delete_google_account(key)
     assert store.get_google_account(key) is None
+
+
+def test_escalation_roundtrip(live):
+    store, key = live
+    esc = store.create_escalation({"person_key": key, "journey_id": f"jrn_{key}", "tier": "person",
+                                   "next_step_at": "2026-11-21T15:03:00+00:00",
+                                   "snapshot": {"user_name": "Test"}})
+    try:
+        assert store.list_escalations(status="open", journey_id=esc["journey_id"])[0]["id"] == esc["id"]
+        esc = store.update_escalation(esc["id"], {"tier": "sequential", "next_priority": 2})
+        assert esc["tier"] == "sequential" and esc["snapshot"] == {"user_name": "Test"}
+
+        row = {"escalation_id": esc["id"], "journey_id": esc["journey_id"],
+               "recipient": "anna@example.com", "kind": "sequential", "ack_token_hash": f"h-{key}"}
+        note = store.claim_notification(row)
+        assert note and store.claim_notification(row) is None          # same email never twice
+        store.update_notification(note["id"], {"gmail_message_id": "m-1"})
+        assert store.find_notification_by_token(f"h-{key}")["gmail_message_id"] == "m-1"
+        assert [n["recipient"] for n in store.list_notifications(esc["id"])] == ["anna@example.com"]
+    finally:
+        store.db.table("escalations").delete().eq("id", esc["id"]).execute()   # cascades to notifications

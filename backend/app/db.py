@@ -1,5 +1,5 @@
-"""Storage for data that must survive a restart: the connected Google account and
-trusted contacts (escalation tables come next).
+"""Storage for data that must survive a restart: the connected Google account,
+trusted contacts, and email escalations (with every email sent).
 
 Two interchangeable stores with the same methods:
 - SupabaseStore: the real database (used when SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY are set).
@@ -50,6 +50,15 @@ class Store(Protocol):
     def update_contact(self, contact_id: str, fields: Row) -> Row: ...
     def delete_contact(self, contact_id: str) -> None: ...
     def reorder_contacts(self, ordered_ids: list[str], person_key: str = DEFAULT_PERSON) -> list[Row]: ...
+    # escalations + notifications_sent
+    def create_escalation(self, row: Row) -> Row: ...
+    def get_escalation(self, escalation_id: str) -> Row: ...
+    def update_escalation(self, escalation_id: str, fields: Row) -> Row: ...
+    def list_escalations(self, status: str | None = None, journey_id: str | None = None) -> list[Row]: ...
+    def claim_notification(self, row: Row) -> Row | None: ...
+    def update_notification(self, notification_id: str, fields: Row) -> None: ...
+    def list_notifications(self, escalation_id: str) -> list[Row]: ...
+    def find_notification_by_token(self, token_hash: str) -> Row | None: ...
 
 
 # ---------------------------------------------------------------- memory
@@ -60,6 +69,8 @@ class MemoryStore:
         self._lock = threading.RLock()
         self.google_accounts: dict[str, Row] = {}
         self.contacts: dict[str, Row] = {}
+        self.escalations: dict[str, Row] = {}
+        self.notifications: dict[str, Row] = {}
 
     def ping(self) -> bool:
         return True
@@ -128,6 +139,56 @@ class MemoryStore:
                 self.contacts[cid]["priority"] = i
                 self.contacts[cid]["updated_at"] = _now()
             return self.list_contacts(person_key)
+
+    # ---------------------------------------------------------- escalations
+    def create_escalation(self, row: Row) -> Row:
+        with self._lock:
+            new = {"person_key": DEFAULT_PERSON, "status": "open", "next_priority": None,
+                   "next_step_at": None, "snapshot": {}, "acknowledged_by": None,
+                   "closed_at": None, **row, "id": str(uuid.uuid4()), "opened_at": _now()}
+            self.escalations[new["id"]] = new
+            return dict(new)
+
+    def get_escalation(self, escalation_id: str) -> Row:
+        row = self.escalations.get(escalation_id)
+        if not row:
+            raise not_found("escalation", escalation_id)
+        return dict(row)
+
+    def update_escalation(self, escalation_id: str, fields: Row) -> Row:
+        with self._lock:
+            new = {**self.get_escalation(escalation_id), **fields}
+            self.escalations[escalation_id] = new
+            return dict(new)
+
+    def list_escalations(self, status: str | None = None, journey_id: str | None = None) -> list[Row]:
+        rows = [dict(e) for e in self.escalations.values()
+                if (status is None or e["status"] == status)
+                and (journey_id is None or e["journey_id"] == journey_id)]
+        return sorted(rows, key=lambda e: e["opened_at"], reverse=True)
+
+    def claim_notification(self, row: Row) -> Row | None:
+        with self._lock:
+            for n in self.notifications.values():
+                if (n["escalation_id"], n["kind"], n["recipient"]) == (
+                        row["escalation_id"], row["kind"], row["recipient"]):
+                    return None
+            new = {"ack_token_hash": None, "gmail_message_id": None, "error": None,
+                   **row, "id": str(uuid.uuid4()), "sent_at": _now()}
+            self.notifications[new["id"]] = new
+            return dict(new)
+
+    def update_notification(self, notification_id: str, fields: Row) -> None:
+        with self._lock:
+            self.notifications[notification_id].update(fields)
+
+    def list_notifications(self, escalation_id: str) -> list[Row]:
+        rows = [dict(n) for n in self.notifications.values() if n["escalation_id"] == escalation_id]
+        return sorted(rows, key=lambda n: n["sent_at"])
+
+    def find_notification_by_token(self, token_hash: str) -> Row | None:
+        return next((dict(n) for n in self.notifications.values()
+                     if n["ack_token_hash"] == token_hash), None)
 
 
 def _check_reorder(current: list[Row], ordered_ids: list[str]) -> None:
@@ -233,6 +294,63 @@ class SupabaseStore:
         for i, cid in enumerate(ordered_ids, start=1):
             self.db.table("contacts").update({"priority": i, "updated_at": _now()}).eq("id", cid).execute()
         return self.list_contacts(person_key)
+
+    # ---------------------------------------------------------- escalations
+    def create_escalation(self, row: Row) -> Row:
+        try:
+            res = self.db.table("escalations").insert({"person_key": DEFAULT_PERSON, **row}).execute()
+        except Exception as e:  # noqa: BLE001
+            self._raise_db(e)
+        return res.data[0]
+
+    def get_escalation(self, escalation_id: str) -> Row:
+        try:
+            uuid.UUID(escalation_id)
+        except ValueError:
+            raise not_found("escalation", escalation_id) from None
+        res = self.db.table("escalations").select("*").eq("id", escalation_id).limit(1).execute()
+        if not res.data:
+            raise not_found("escalation", escalation_id)
+        return res.data[0]
+
+    def update_escalation(self, escalation_id: str, fields: Row) -> Row:
+        res = self.db.table("escalations").update(fields).eq("id", escalation_id).execute()
+        if not res.data:
+            raise not_found("escalation", escalation_id)
+        return res.data[0]
+
+    def list_escalations(self, status: str | None = None, journey_id: str | None = None) -> list[Row]:
+        q = self.db.table("escalations").select("*")
+        if status:
+            q = q.eq("status", status)
+        if journey_id:
+            q = q.eq("journey_id", journey_id)
+        try:
+            return q.order("opened_at", desc=True).limit(200).execute().data
+        except Exception as e:  # noqa: BLE001
+            self._raise_db(e)
+
+    def claim_notification(self, row: Row) -> Row | None:
+        """Insert the row before sending; None if this email was already sent (unique key)."""
+        try:
+            res = self.db.table("notifications_sent").insert(row).execute()
+        except Exception as e:  # noqa: BLE001
+            if getattr(e, "code", None) == "23505":
+                return None
+            self._raise_db(e)
+        return res.data[0]
+
+    def update_notification(self, notification_id: str, fields: Row) -> None:
+        self.db.table("notifications_sent").update(fields).eq("id", notification_id).execute()
+
+    def list_notifications(self, escalation_id: str) -> list[Row]:
+        return (self.db.table("notifications_sent").select("*").eq("escalation_id", escalation_id)
+                .order("sent_at").execute().data)
+
+    def find_notification_by_token(self, token_hash: str) -> Row | None:
+        res = (self.db.table("notifications_sent").select("*").eq("ack_token_hash", token_hash)
+               .limit(1).execute())
+        return res.data[0] if res.data else None
 
 
 # ---------------------------------------------------------------- factory

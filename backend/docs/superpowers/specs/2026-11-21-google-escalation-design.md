@@ -1,6 +1,6 @@
 # Google connection + route-alert email escalation — design
 
-Date: 2026-11-21. Status: draft, awaiting approval.
+Date: 2026-11-21. Status: approved; stop rules decided by the user.
 Scope: the shared base (Google connection, Supabase, trusted contacts) and route-alert emails.
 Visit reminders (Google Calendar) are the **next** round and are out of scope here, but the base
 must already request the calendar permission so the family member connects Google only once.
@@ -133,9 +133,12 @@ Without them, Google/Supabase features report "not configured" and everything el
   for a no-signal escalation, when GPS comes back (mirrors the existing `_resolve_no_signal`).
 - *[Claude's call]* Any check-in answer (including "Show me the way") within 3 min cancels the
   unanswered-check-in timer; a help request instead goes straight to "all".
-- **[User to decide]** After the last contact gets no "I'm on it".
-- **[User to decide]** Whether "I'm okay" from the person, or risk falling back to low, stops an
-  escalation that has already emailed family.
+- **Decided by the user:** if a contact doesn't click "I'm on it", email the next one by priority.
+  After the last contact, sequential emailing stops (no re-send). A score of 90–100 still emails
+  everyone at once.
+- **Decided by the user:** if the person answers "I'm okay" after family has been emailed, every
+  emailed contact gets an "all good" update and the escalation closes. Risk falling back to low
+  does not stop an escalation on its own.
 
 ## Left to the builder
 

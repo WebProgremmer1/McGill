@@ -118,6 +118,20 @@ dl.stats dd{margin:0;font-family:var(--f-mono);font-size:14px}
 .opts .btn{font-weight:500;background:var(--surface)}
 .opts .btn.help{color:var(--high);border-color:var(--high)}
 .empty{color:var(--muted);font-size:13px}
+/* visit reminder (Google Calendar) */
+.visit{border:2px solid var(--accent);border-radius:18px;padding:14px;display:grid;gap:10px;background:var(--surface)}
+.visit[hidden]{display:none}
+.visit .who{display:grid;grid-template-columns:72px minmax(0,1fr);gap:12px;align-items:center}
+.visit .face{width:72px;height:72px;border-radius:50%;object-fit:cover;background:var(--accent);color:var(--surface);
+  display:grid;place-items:center;font:700 26px/1 var(--f-display)}
+.visit .name{font:700 20px/1.2 var(--f-display)}
+.visit .rel{color:var(--muted);font-size:14px}
+.visit .when{font-size:17px}
+.visit .when b{font-family:var(--f-display)}
+.visit .why{font-size:15px}
+.visit .also{font-size:13px;color:var(--muted)}
+.visit .opts .btn{font-size:15px;padding:9px 16px}
+.visit .opts .btn.primary{background:var(--accent);color:var(--surface);border-color:var(--accent)}
 #events{list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:420px;overflow:auto}
 #events li{border:1px solid var(--line);border-radius:10px;padding:9px 12px;display:grid;gap:4px;font-size:13.5px}
 .evtype{font-family:var(--f-mono);font-size:11.5px;padding:2px 7px;border-radius:5px;justify-self:start}
@@ -228,6 +242,7 @@ dl.stats dd{margin:0;font-family:var(--f-mono);font-size:14px}
   <section class="bottom">
     <div class="card phone">
       <h2 id="phone-title">Margaret's phone</h2>
+      <div class="visit" id="visit" hidden aria-live="polite"></div>
       <div class="screen" id="phone"><div class="empty">Check-ins appear here when the risk is medium.</div></div>
     </div>
     <div class="card feed">
@@ -554,6 +569,54 @@ function addEvent(cls, title, body, alertId) {
   });
   $("events").prepend(li);
 }
+
+/* ---------------- visit reminders (Google Calendar) ---------------- */
+// A visit = a calendar event with a trusted contact as a guest. The backend decides when to show it.
+const DISMISSED_KEY = "walk-safety:dismissed-visits";
+function dismissed() { try { return JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]"); } catch { return []; } }
+function dismiss(id) { try { localStorage.setItem(DISMISSED_KEY, JSON.stringify([...dismissed(), id].slice(-50))); } catch {} }
+function speak(text) {
+  if (!("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text); u.rate = 0.9;
+  speechSynthesis.speak(u);
+}
+function initials(name) { return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join(""); }
+function showVisit(r) {
+  const box = $("visit");
+  if (!r) { box.hidden = true; box.innerHTML = ""; box.dataset.id = ""; return; }
+  if (box.dataset.id === r.event_id && !box.hidden) {   // same visit: just refresh the countdown
+    box.querySelector(".soon").textContent = soonText(r); return;
+  }
+  const v = r.visitor, first = v.name.split(" ")[0];
+  const face = v.photo_url
+    ? `<img class="face" src="${esc(v.photo_url)}" alt="" referrerpolicy="no-referrer">`
+    : `<div class="face">${esc(initials(v.name))}</div>`;
+  const also = r.with.length ? `<div class="also">Coming with: ${r.with.map(c => esc(c.name.split(" ")[0]) + (c.relationship ? ` (your ${esc(c.relationship)})` : "")).join(", ")}</div>` : "";
+  box.dataset.id = r.event_id;
+  box.innerHTML = `<div class="eyebrow">Visitor coming</div>
+    <div class="who">${face}<div><div class="name">${esc(first)}</div>${v.relationship ? `<div class="rel">Your ${esc(v.relationship)}</div>` : ""}</div></div>
+    <div class="when">Arriving at <b>${esc(r.arrival_text)}</b> · <span class="soon">${esc(soonText(r))}</span></div>
+    ${r.reason ? `<div class="why">${esc(r.reason)}</div>` : ""}${also}
+    <div class="opts"><button class="btn primary" type="button" data-act="read">Read aloud</button><button class="btn" type="button" data-act="ok">Got it</button></div>`;
+  const img = box.querySelector("img.face");
+  if (img) img.onerror = () => { const d = document.createElement("div"); d.className = "face"; d.textContent = initials(v.name); img.replaceWith(d); };
+  box.querySelector('[data-act="read"]').onclick = () => speak(r.read_aloud);
+  box.querySelector('[data-act="ok"]').onclick = () => { dismiss(r.event_id); window.speechSynthesis?.cancel(); showVisit(null); };
+  box.hidden = false;
+}
+function soonText(r) {
+  const m = Math.round((new Date(r.arrives_at) - Date.now()) / 60000);
+  return m > 1 ? `in ${m} minutes` : m >= -1 ? "now" : `${-m} minutes ago`;
+}
+async function pollVisits() {
+  try {
+    const body = await fetch(API + "/reminders").then(r => r.json());
+    const hidden = dismissed();
+    showVisit((body.reminders || []).find(r => r.show_now && !hidden.includes(r.event_id)) || null);
+  } catch { /* no backend / no Google: the phone simply shows no reminder */ }
+}
+pollVisits(); setInterval(pollVisits, 60000);
 
 /* ---------------- running a scenario ---------------- */
 async function post(path, body) {

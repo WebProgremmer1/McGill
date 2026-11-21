@@ -1,7 +1,9 @@
 """Journey logic + escalation (check-ins and caregiver alerts). In-memory storage."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from .errors import ApiError, not_found
 from .models import (
@@ -10,6 +12,11 @@ from .models import (
 )
 from .risk import assess
 from .routes_provider import RouteProvider
+
+if TYPE_CHECKING:
+    from .escalation import EscalationEngine
+
+log = logging.getLogger(__name__)
 
 CHECKIN_COOLDOWN = 10 * MIN  # journey-time gap between automatic check-ins
 CHECKIN_OPTIONS = ["I'm okay", "I need help"]
@@ -45,8 +52,9 @@ def _checkin_message(j: Journey, risk: RiskAssessment) -> str:
 
 
 class JourneyService:
-    def __init__(self, route_provider: RouteProvider):
+    def __init__(self, route_provider: RouteProvider, escalation: "EscalationEngine | None" = None):
         self.routes = route_provider
+        self.escalation = escalation  # emails family; None = on-screen alerts only
         self.journeys: dict[str, Journey] = {}
         self.checkins: dict[str, CheckIn] = {}
         self.alerts: dict[str, Alert] = {}
@@ -55,6 +63,15 @@ class JourneyService:
         self.journeys.clear()
         self.checkins.clear()
         self.alerts.clear()
+
+    def _notify(self, event: str, *args) -> None:
+        """Tell the email escalation engine. An email problem never breaks the GPS endpoint."""
+        if not self.escalation:
+            return
+        try:
+            getattr(self.escalation, event)(*args)
+        except Exception:  # noqa: BLE001
+            log.exception("email escalation: %s failed", event)
 
     # ---------------------------------------------------------- journeys
     def create_journey(self, req: JourneyCreate) -> Journey:
@@ -99,6 +116,7 @@ class JourneyService:
         for c in self.checkins.values():
             if c.journey_id == j.id and c.status == "open":
                 c.status = "closed"
+        self._notify("on_journey_end", j, status)
         return j
 
     def complete(self, journey_id: str) -> Journey:
@@ -140,6 +158,7 @@ class JourneyService:
             else:
                 dedup = True
 
+        self._notify("on_location", j, checkin is not None, alert is not None)
         return LocationResult(
             journey_id=j.id, journey_status=j.status, location=point, risk=risk,
             checkin_created=checkin, alert_created=alert, deduplicated=dedup,
@@ -209,6 +228,7 @@ class JourneyService:
             if existing:
                 return CheckInResult(journey_id=j.id, risk=j.risk, alert=existing, deduplicated=True)
             alert = self._make_alert(j, j.risk, "help_request", "critical")
+            self._notify("on_help", j)
             return CheckInResult(journey_id=j.id, risk=j.risk, alert=alert)
 
         if req.checkin_id:
@@ -229,6 +249,7 @@ class JourneyService:
         j.risk = assess(j)
         if _is_okay(req.response):
             alert = self._make_alert(j, j.risk, "said_okay", "info")  # tell the caregiver when she said it
+        self._notify("on_checkin_answered", j, _is_okay(req.response))
         return CheckInResult(journey_id=j.id, risk=j.risk, checkin=c, alert=alert)
 
     def journey_checkins(self, journey_id: str) -> list[CheckIn]:
@@ -251,4 +272,13 @@ class JourneyService:
         if not a.acknowledged:
             a.acknowledged = True
             a.acknowledged_at = _now()
+            if a.type in ("risk", "help_request"):
+                self._notify("on_alert_acknowledged", a.journey_id)
         return a
+
+    def acknowledge_journey_alerts(self, journey_id: str) -> None:
+        """A contact clicked "I'm on it" in an email: clear the dashboard alerts too."""
+        for a in self.alerts.values():
+            if a.journey_id == journey_id and a.type in ("risk", "help_request") and not a.acknowledged:
+                a.acknowledged = True
+                a.acknowledged_at = _now()

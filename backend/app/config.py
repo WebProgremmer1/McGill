@@ -30,6 +30,14 @@ class Settings:
     supabase_key: str | None = None
     # Fernet key that encrypts the Google refresh token before it is stored.
     token_encryption_key: str | None = None
+    # Email escalation (wall-clock seconds; shorten them for a demo).
+    public_base_url: str = "http://localhost:8000"   # "I'm on it" links in emails point here
+    checkin_reply_timeout_s: int = 180   # medium check-in unanswered this long -> email contact #1
+    escalation_step_s: int = 300         # no "I'm on it" this long -> email the next contact
+    escalation_tick_s: int = 15          # how often the background timer checks
+    # Visit reminders (Google Calendar): shown this long before a visit until this long after it starts.
+    visit_reminder_lead_min: int = 20
+    visit_reminder_grace_min: int = 30
 
     @property
     def google_enabled(self) -> bool:
@@ -59,7 +67,21 @@ class Settings:
             supabase_url=(os.getenv("SUPABASE_URL") or "").strip() or None,
             supabase_key=(os.getenv("SUPABASE_SERVICE_ROLE_KEY") or "").strip() or None,
             token_encryption_key=(os.getenv("TOKEN_ENCRYPTION_KEY") or "").strip() or None,
+            public_base_url=(os.getenv("PUBLIC_BASE_URL") or "http://localhost:8000").strip().rstrip("/"),
+            checkin_reply_timeout_s=_int("CHECKIN_REPLY_TIMEOUT_S", 180),
+            escalation_step_s=_int("ESCALATION_STEP_S", 300),
+            escalation_tick_s=_int("ESCALATION_TICK_S", 15),
+            visit_reminder_lead_min=_int("VISIT_REMINDER_LEAD_MIN", 20),
+            visit_reminder_grace_min=_int("VISIT_REMINDER_GRACE_MIN", 30),
         )
+
+
+def _int(name: str, default: int) -> int:
+    value = (os.getenv(name) or "").strip()
+    try:
+        return max(1, int(value)) if value else default
+    except ValueError:
+        raise ValueError(f"{name} must be a whole number of seconds, got {value!r}") from None
 
 
 def _path(value: str | None) -> Path | None:

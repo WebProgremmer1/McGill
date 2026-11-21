@@ -1,6 +1,8 @@
 """FastAPI app. Start with:  uvicorn app.main:app --reload"""
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,7 +17,11 @@ from .config import Settings
 from .db import Store, create_store
 from .demo import run_demo
 from .errors import ApiError
+from .escalation import EscalationEngine
+from .escalation_api import build_router as build_escalation_router, start_ticker
 from .google_auth import GoogleAuth
+from .mailer import GmailMailer
+from .reminders import VisitReminders
 from .models import (
     DISCLAIMER, Alert, CheckIn, CheckInRequest, CheckInResult, Journey,
     JourneyCreate, LocationResult, LocationUpdate, Place, RouteRequest,
@@ -25,16 +31,27 @@ from .service import JourneyService
 
 
 def create_app(settings: Settings | None = None, route_provider: RouteProvider | None = None,
-               store: Store | None = None, google: GoogleAuth | None = None) -> FastAPI:
+               store: Store | None = None, google: GoogleAuth | None = None,
+               escalation: EscalationEngine | None = None,
+               reminders: VisitReminders | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
-    service = JourneyService(route_provider or RouteProvider(settings))
     store = store or create_store(settings)
     google = google or GoogleAuth(settings, store)
+    engine = escalation or EscalationEngine(store, GmailMailer(google), settings)
+    service = JourneyService(route_provider or RouteProvider(settings), engine)
+    reminders = reminders or VisitReminders(store, settings, google=google)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        stop = start_ticker(engine, settings.escalation_tick_s)  # 3-min / 5-min email steps
+        yield
+        stop.set()
 
     app = FastAPI(
         title="Cognitive Safety Backend (hackathon prototype)",
         version="0.1.0",
         description=DISCLAIMER + " Uses fictional users and synthetic data only.",
+        lifespan=lifespan,
     )
     app.add_middleware(
         CORSMiddleware, allow_origins=settings.cors_origins,
@@ -43,6 +60,7 @@ def create_app(settings: Settings | None = None, route_provider: RouteProvider |
     app.state.service = service
     app.state.store = store
     app.state.google = google
+    app.state.escalation = engine
 
     # ------------------------------------------------------------ errors
     def err(status: int, code: str, message: str, details=None) -> JSONResponse:
@@ -149,6 +167,12 @@ def create_app(settings: Settings | None = None, route_provider: RouteProvider |
         return {"status": "reset"}
 
     app.include_router(build_router(store, google, settings.google_oauth_done_url))
+    app.include_router(build_escalation_router(engine, service))
+
+    @app.get("/api/reminders", tags=["reminders"])
+    def visit_reminders():
+        """Visits from Google Calendar in the next 24 h. `show_now` = put it on the phone."""
+        return reminders.list()
 
     @app.get("/", include_in_schema=False)
     def root():

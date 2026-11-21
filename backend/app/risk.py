@@ -124,6 +124,9 @@ def taking_too_long(j: Journey) -> RiskReason | None:
 
 
 # ---------------------------------------------------------------- total
+CRITICAL_MIN = 90  # 90-100: email every trusted contact at once
+
+
 def level_for(score: int) -> str:
     if score >= 60:
         return "high"

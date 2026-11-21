@@ -216,3 +216,19 @@ phone sends {latitude, longitude, timestamp}
   -> service.py    medium? make a check-in.  high? make a caregiver alert.
   -> reply with the score, the reasons, and any check-in or alert created
 ```
+
+## Testing Gmail and Calendar
+
+Offline (fake Gmail and Calendar, always run): `python -m pytest`.
+`tests/test_google_integration.py` checks that every contact added through the API receives alerts
+and shows up as a visitor when invited to a calendar event.
+
+Live, against the connected Google account (sends about 4 real emails, contacts are isolated):
+
+```bash
+RUN_GOOGLE_TESTS=1 python -m pytest tests/test_google_live.py -v
+```
+
+- `GOOGLE_TEST_RECIPIENT=someone@gmail.com` sends the test alert there instead of to the connected account.
+- `GOOGLE_TEST_VISITOR=someone@gmail.com` also checks that a calendar event in the next 24 h with
+  that guest becomes a visit reminder.
