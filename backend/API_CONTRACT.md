@@ -68,7 +68,7 @@ Request (`route` and `predefined_route` are optional; `started_at` is optional, 
   "predefined_route": "tim_hortons_demo"
 }
 ```
-Route choice order: `route` (client) → `predefined_route` → Google Routes (walking) → straight-line fallback.
+Route choice order: `route` (client) → `predefined_route` → Google Routes (walking) → `fallback_route` (a predefined route, if sent) → straight-line fallback.
 Calculated once, at creation.
 
 Response = a **Journey** (also returned by GET/complete/cancel):
@@ -165,13 +165,22 @@ Only **one** unacknowledged risk alert exists per journey, and no new one is rai
 ## `POST /api/alerts/{id}/acknowledge` → `Alert`
 No body. Idempotent.
 
+## `GET /api/messages` → `Message[]` (newest first)  ·  `POST /api/messages` → 201
+Ordinary demo messages to a caregiver. They are kept in memory, cleared by `POST /api/demo/reset`, and never create alerts or journeys.
+```json
+{ "body": "I got home safely." }
+```
+→ `{ "id": "msg_1a2b3c4d", "body": "I got home safely.", "created_at": "2026-01-01T09:20:00Z" }`
+
+`body` is 1 to 280 characters after trimming.
+
 ## Extras
 - `GET /api/routes/predefined` → `{ "routes": ["tim_hortons_demo"] }`
 - `POST /api/demo/run` → replays the Tim Hortons scenario instantly through the real risk engine:
   `{ "journey_id", "summary": {first_medium_at_minute, first_high_at_minute, final_score, …}, "steps": [ {minute, phase, description, latitude, longitude, score, level, reasons[], reason_details[], checkin_created, alert_created} ] }`.
   The journey, check-in and alert then show up in the normal GET endpoints.
 - `POST /api/demo/reset` → clears all in-memory data.
-- `GET /api/maps-config` → `{ "browser_key": "…" | null, "maps_enabled": true }`, the key the live map page loads Google Maps with.
+- `GET /api/maps-config` → `{ "browser_key": "…" | null, "maps_enabled": true }`, the separate browser key for Google Maps. It is `null` if blank or the same as the server key.
 - `POST /api/expected-route` with `{ "start": {latitude, longitude}, "destination": {latitude, longitude} }` →
   `{ "route": [ {latitude, longitude}, … ], "route_source", "route_warning", "distance_m", "duration_s" }`. Looks up a route without creating a journey.
 

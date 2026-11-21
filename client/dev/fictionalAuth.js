@@ -3,8 +3,8 @@
 import { randomBytes } from 'node:crypto'
 
 const cookieName = 'fictional_session'
-const personPermissions = ['view_today', 'read_reminders', 'read_journey', 'start_journey', 'read_help', 'request_help']
-const caregiverPermissions = ['view_dashboard', 'read_reminders', 'send_reminders', 'read_journey', 'read_help']
+const personPermissions = ['view_today', 'read_reminders', 'send_messages', 'read_journey', 'start_journey', 'read_help', 'request_help']
+const caregiverPermissions = ['view_dashboard', 'read_reminders', 'send_reminders', 'read_messages', 'read_journey', 'read_help']
 const remindersOnly = ['view_dashboard', 'read_reminders']
 
 function seed() {
@@ -152,6 +152,20 @@ async function handleScoped(state, target, req, res, circle, account, rest, url)
     circle.reminder = { message, senderId: account.id }
     return send(res, 200, { message, sender: personView(state, circle, account.id, false) })
   }
+  if (rest === '/messages' && method === 'GET') {
+    if (!can('read_messages')) return forbidden(res)
+    return send(res, 200, [...(circle.messages ?? [])].reverse())
+  }
+  if (rest === '/messages' && method === 'POST') {
+    if (!can('send_messages')) return forbidden(res)
+    const body = await readBody(req)
+    const text = typeof body?.body === 'string' ? body.body.trim() : ''
+    if (!text || text.length > 280) return fail(res, 422, 'invalid_message', 'Write a message of 280 characters or fewer.', 'body')
+    // The sender comes from the session, never from the request body.
+    const message = { id: `msg_${randomBytes(4).toString('hex')}`, body: text, created_at: new Date().toISOString(), sender: personView(state, circle, account.id, false) }
+    circle.messages = [...(circle.messages ?? []), message]
+    return send(res, 201, message)
+  }
   if (rest === '/journeys' && method === 'GET') {
     if (!can('read_journey')) return forbidden(res)
     const { status, body } = await upstream(target, '/api/journeys')
@@ -197,7 +211,7 @@ async function handleScoped(state, target, req, res, circle, account, rest, url)
 async function handle(state, target, req, res, next) {
   const url = new URL(req.url, 'http://local.test')
   const path = url.pathname
-  if (path === '/viewer' || path.startsWith('/viewer/')) {
+  if (path === '/viewer' || path.startsWith('/viewer/') || path === '/api/maps-config') {
     const account = sessionAccount(state, req)
     if (!account) return fail(res, 401, 'not_signed_in', 'Sign in to continue.')
     if (!circlesFor(state, account).some(circle => circle.members.get(account.id).includes('read_journey'))) return forbidden(res)

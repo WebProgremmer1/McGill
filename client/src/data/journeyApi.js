@@ -2,6 +2,14 @@ import { DEMO_REMINDER_PLACE, HELP_ONLY_PLACE, reminderRequest, reminderText } f
 
 export const viewerUrl = '/viewer/'
 
+let mapsConfig
+export function readMapsConfig() {
+  mapsConfig ??= fetch('/api/maps-config')
+    .then(response => (response.ok ? response.json() : { maps_enabled: false }))
+    .catch(() => ({ maps_enabled: false }))
+  return mapsConfig
+}
+
 async function request(path, options = {}) {
   const response = await fetch('/api' + path, {
     signal: AbortSignal.timeout(10000),
@@ -30,18 +38,26 @@ export function createJourneyApi(circle = null) {
   return {
     can,
 
-    async readJourney(signal) {
-      const [allJourneys, reminder, alerts, routes] = await Promise.all([
+    async readJourney(signal, includeMessages = false) {
+      const [allJourneys, reminder, alerts, routes, messages] = await Promise.all([
         can('read_journey') ? request(`${base}/journeys`, { signal }) : [],
         circle && can('read_reminders') ? request(`${base}/reminder`, { signal }) : null,
         can('read_help') ? request(`${base}/alerts?acknowledged=false`, { signal }) : [],
         request('/routes/predefined', { signal }).catch(() => ({ routes: [] })),
+        // A 404 means this server predates messages. The rest of the dashboard keeps working.
+        includeMessages && can('read_messages')
+          ? request(`${base}/messages`, { signal }).catch(error => {
+            if (error.status === 404) return null
+            throw error
+          })
+          : [],
       ])
       const journeys = allJourneys.filter(item => ![HELP_ONLY_PLACE, DEMO_REMINDER_PLACE].includes(item.destination.name))
       const reminderRecord = circle ? null : allJourneys.filter(item => item.destination.name === DEMO_REMINDER_PLACE).at(-1)
       // The newest active journey is what both windows show, including a backend replay.
       const journey = journeys.filter(item => item.status === 'active').at(-1) ?? null
-      const help = alerts.find(item => item.type === 'help_request') ?? null
+      const helpRequests = alerts.filter(item => item.type === 'help_request')
+      const help = helpRequests.find(item => item.journey_id === journey?.id) ?? helpRequests[0] ?? null
       const helpJourney = help ? allJourneys.find(item => item.id === help.journey_id) ?? null : null
       const checkIns = journey ? await request(`${base}/journeys/${encodeURIComponent(journey.id)}/checkins`, { signal }) : []
       return {
@@ -54,10 +70,13 @@ export function createJourneyApi(circle = null) {
         reminder: reminderRecord ? reminderText(reminderRecord) : reminder?.message ?? null,
         reminderId: reminderRecord?.id ?? reminder?.message ?? null,
         reminderSender: reminder?.sender ?? null,
+        messages,
       }
     },
 
     createJourney: body => postJson(`${base}/journeys`, body),
+
+    googleRoutesEnabled: () => request('/health').then(health => Boolean(health.google_routes_configured)).catch(() => false),
 
     closeJourney: (journeyId, action) =>
       request(`${base}/journeys/${encodeURIComponent(journeyId)}/${action}`, { method: 'POST' }),
@@ -71,6 +90,8 @@ export function createJourneyApi(circle = null) {
       `${base}/journeys/${encodeURIComponent(journeyId)}/checkin`,
       { response: "I'm okay", checkin_id: checkInId },
     ),
+
+    sendMessage: body => postJson(`${base}/messages`, { body }),
 
     async sendReminder(message) {
       if (circle) {

@@ -124,6 +124,14 @@ dl.stats dd{margin:0;font-family:var(--f-mono);font-size:14px}
 .evtype.alert{background:var(--high-bg);color:var(--high)} .evtype.crit{background:var(--crit-bg);color:var(--crit)}
 .evtype.chk{background:var(--med-bg);color:var(--med)} .evtype.ok{background:var(--low-bg);color:var(--low)}
 
+/* embedded in a dashboard: only the map */
+html.embed,html.embed body{height:100%;margin:0;background:transparent}
+.embed .wrap{display:block;max-width:none;height:100%;padding:0}
+.embed .wrap>:not(.stage),.embed .stage>aside,.embed .legend{display:none!important}
+.embed .stage{display:block;height:100%}
+.embed .mapcard{display:block;height:100%;padding:0;border:0;border-radius:0}
+.embed #map{height:100%;min-height:0;border-radius:0}
+
 /* map markers */
 /* big text labels with a pointer underneath, so HOME and DESTINATION are obvious */
 .mk{position:relative;margin-bottom:9px;padding:7px 12px;border-radius:8px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);
@@ -244,6 +252,13 @@ dl.stats dd{margin:0;font-family:var(--f-mono);font-size:14px}
 
 <script>
 const API = "/api";
+const QS = new URLSearchParams(location.search);
+const JOURNEY_PARAM = QS.get("journey");   // follow this journey instead of creating one ("active" = newest)
+const ATTACH = Boolean(JOURNEY_PARAM);
+const EMBED = ATTACH && QS.get("embed") === "1";
+const PLACEHOLDERS = ["No active journey", "Demo reminder"];
+let attachedId = null;
+if (EMBED) document.documentElement.classList.add("embed");
 const $ = id => document.getElementById(id);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -373,9 +388,13 @@ const SCENARIOS = [
 function loadGoogle(key) {
   return new Promise((resolve, reject) => {
     window.__gmReady = resolve;
-    window.gm_authFailure = () => reject(new Error("Google rejected the key. It needs the Maps JavaScript API and Places API enabled."));
+    window.gm_authFailure = () => {
+      const message = "Google rejected the browser key. Check that it allows this page's origin and the Maps JavaScript API.";
+      reject(new Error(message));
+      mapFailed(message);
+    };
     const s = document.createElement("script");
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&language=en&region=CA&libraries=places,marker&loading=async&callback=__gmReady`;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&language=en&region=CA&libraries=${ATTACH ? "marker" : "places,marker"}&loading=async&callback=__gmReady`;
     s.async = true; s.onerror = () => reject(new Error("Could not load Google Maps (offline?)."));
     document.head.appendChild(s);
   });
@@ -389,7 +408,7 @@ function pinEl(cls, text) { const d = document.createElement("div"); d.className
 async function initMap() {
   const { Map } = await google.maps.importLibrary("maps");
   ({ AdvancedMarkerElement: Adv } = await google.maps.importLibrary("marker"));
-  await google.maps.importLibrary("places");
+  if (!ATTACH) await google.maps.importLibrary("places");
   $("map").innerHTML = "";
   map = new Map($("map"), {
     center: { lat: 45.5019, lng: -73.5674 }, zoom: 14,
@@ -402,8 +421,8 @@ async function initMap() {
     line: new google.maps.Polyline({ map, strokeColor: "#2f5d86", strokeOpacity: op, strokeWeight: 1, zIndex: 1, clickable: false }) }));
   mk.route = new google.maps.Polyline({ map, strokeColor: "#2f5d86", strokeOpacity: .95, strokeWeight: 5, zIndex: 2, clickable: false });
   mk.zones = ["start", "dest"].map(() => new google.maps.Circle({ map, radius: SAFE_ZONE_M, strokeColor: "#2e8b57", strokeWeight: 2, fillColor: "#2e8b57", fillOpacity: .15, clickable: false, visible: false }));
-  mk.start = new Adv({ content: pinEl("a", "HOME"), gmpDraggable: true, title: "Home (drag to move)", zIndex: 50 });
-  mk.dest = new Adv({ content: pinEl("b", "DESTINATION"), gmpDraggable: true, title: "Destination (drag to move)", zIndex: 50 });
+  mk.start = new Adv({ content: pinEl("a", "HOME"), gmpDraggable: !ATTACH, title: ATTACH ? "Start" : "Home (drag to move)", zIndex: 50 });
+  mk.dest = new Adv({ content: pinEl("b", "DESTINATION"), gmpDraggable: !ATTACH, title: ATTACH ? "Destination" : "Destination (drag to move)", zIndex: 50 });
   for (const which of ["start", "dest"]) mk[which].addListener("dragend", () => {
     const p = mk[which].position, lat = typeof p.lat === "function" ? p.lat() : p.lat, lng = typeof p.lng === "function" ? p.lng() : p.lng;
     setPlace(which, { name: pinName(lat, lng), lat, lng });
@@ -414,7 +433,7 @@ async function initMap() {
     if (armed) { setPlace(armed, { name: pinName(lat, lng), lat, lng }); arm(null); }
     else if (manual) moveTo([lat, lng], MINUTES_PER_CLICK);
   });
-  for (const which of ["start", "dest"]) {
+  for (const which of ATTACH ? [] : ["start", "dest"]) {
     const input = $(which === "start" ? "in-start" : "in-dest");
     const ac = new google.maps.places.Autocomplete(input, {
       bounds: MTL_BOUNDS, strictBounds: true, componentRestrictions: { country: "ca" }, fields: ["name", "geometry", "formatted_address"],
@@ -471,10 +490,11 @@ function drawRoute() {
   mk.route.setPath(path); mk.bands.forEach(b => b.line.setPath(path));
   [place.start, place.dest].forEach((p, i) => { mk.zones[i].setCenter(ll([p.lat, p.lng])); mk.zones[i].setVisible(true); });
   const bounds = new google.maps.LatLngBounds(); path.forEach(p => bounds.extend(p));
-  map.fitBounds(bounds, 90);
+  map.fitBounds(bounds, EMBED ? 36 : 90);
   google.maps.event.addListenerOnce(map, "idle", sizeBands); sizeBands();
   const km = (ROUTE.distance_m ?? LEN) / 1000, min = Math.round((ROUTE.duration_s ?? LEN / 1.3) / 60);
-  const src = ROUTE.source === "google_routes" ? `<span class="chip">Google walking route</span>` : `<span class="chip warn">Straight-line fallback</span>`;
+  const srcLabel = { google_routes: "Google walking route", predefined: "Demo route", client: "Saved route" }[ROUTE.source];
+  const src = srcLabel ? `<span class="chip">${srcLabel}</span>` : `<span class="chip warn">Straight-line fallback</span>`;
   const notes = [];
   if (ROUTE.warning) notes.push(esc(ROUTE.warning));
   if (LEN < 450) notes.push("Very short walk: the off-route scenarios work best with places at least 500 m apart.");
@@ -573,6 +593,13 @@ const expectedMinutes = () => (ROUTE.duration_s ?? LEN / 1.3) / 60;
 async function newWalk() {
   clearWalk();
   $("phone").innerHTML = `<div class="empty">Check-ins appear here when the risk is medium.</div>`;
+  if (attachedId) {                       // keep sending points to the same journey
+    const j = await getJourney(attachedId);
+    if (j.status !== "active") throw new Error("That journey has ended.");
+    const latest = j.track.at(-1)?.timestamp ?? j.started_at;
+    walk = { id: j.id, t0: new Date(Math.ceil(Date.parse(latest) / 1000) * 1000), minute: 0, last: null, score: j.risk.score };
+    return;
+  }
   const t0 = new Date(Math.floor(Date.now() / 1000) * 1000);
   const iso = m => new Date(t0.getTime() + m * 60000).toISOString();
   const zone = p => ({ name: p.name, latitude: p.lat, longitude: p.lng, radius_m: SAFE_ZONE_M });
@@ -615,7 +642,7 @@ async function run(sc) {
     await sleep(+$("speed").value);
   }
   if (me.stop) return;
-  await post(`/journeys/${walk.id}/complete`).catch(() => {});
+  if (!attachedId) await post(`/journeys/${walk.id}/complete`).catch(() => {});
   $("status").innerHTML = `<b>${sc.title}</b> finished. Pick another scenario, walk it yourself, or change the places.`;
   running = null;
 }
@@ -639,6 +666,67 @@ async function moveTo(latlng, minutes) {
   } catch (e) {
     $("status").textContent = "Error: " + (e.message || JSON.stringify(e));
   } finally { busy = false; }
+}
+
+/* ---------------- following one existing journey ---------------- */
+const getJourney = id => fetch(`${API}/journeys/${encodeURIComponent(id)}`).then(async r => {
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error?.message || "Journey not found.");
+  return j;
+});
+function tellParent(status) {
+  if (EMBED) parent.postMessage({ type: "whats-next-map", status, journey: JOURNEY_PARAM }, location.origin);
+}
+function mapFailed(message) {
+  $("map").innerHTML = `<div class="mapmsg"><div><b>Map unavailable.</b><br>${esc(message)}</div></div>`;
+  tellParent("failed");
+}
+let shownRoute = "";
+function showJourney(j) {
+  place.start = { name: j.start.name, lat: j.start.latitude, lng: j.start.longitude };
+  place.dest = { name: j.destination.name, lat: j.destination.latitude, lng: j.destination.longitude };
+  const key = JSON.stringify([j.route, j.start, j.destination]);
+  if (key !== shownRoute) {
+    shownRoute = key;
+    ROUTE = { points: j.route.map(p => [p.latitude, p.longitude]), source: j.route_source, warning: j.route_warning, distance_m: j.route_distance_m, duration_s: j.route_duration_s };
+    setGeometry();
+    for (const which of ["start", "dest"]) { mk[which].position = ll([place[which].lat, place[which].lng]); mk[which].map = map; }
+    mk.start.content.textContent = j.start.name.toUpperCase();
+    mk.dest.content.textContent = j.destination.name.toUpperCase();
+    drawRoute(); refreshCards();
+  }
+  if (EMBED) drawTrack(j);
+}
+function drawTrack(j) {
+  walkLayers.forEach(o => o.setMap(null)); walkLayers = [];
+  const points = j.track.map(p => [p.latitude, p.longitude]);
+  if (points.length > 1) walkLayers.push(new google.maps.Polyline({ map, path: points.map(ll), strokeColor: lvlColor(j.risk.level), strokeWeight: 6, zIndex: 10, clickable: false }));
+  const latest = points.at(-1);
+  if (latest) { drawStep(null, latest, j.risk.level); $("map").dataset.latest = latest.join(","); }
+  else if (mk.me) mk.me.map = null;
+}
+function startEmbed() {
+  attachedId = JOURNEY_PARAM;
+  $("map").dataset.journey = attachedId;
+  // The dashboard sends only the journey its own access check already allowed.
+  addEventListener("message", e => {
+    if (e.origin !== location.origin || e.source !== parent) return;
+    if (e.data?.type === "whats-next-journey" && e.data.journey?.id === attachedId) showJourney(e.data.journey);
+  });
+  tellParent("ready");
+}
+async function attachJourney() {
+  let j;
+  if (JOURNEY_PARAM === "active") {
+    const all = await fetch(API + "/journeys").then(r => r.json());
+    j = all.filter(x => x.status === "active" && !PLACEHOLDERS.includes(x.destination.name)).at(-1);
+    if (!j) throw new Error("No active journey. Choose a destination on the Patient dashboard first.");
+  } else j = await getJourney(JOURNEY_PARAM);
+  attachedId = j.id;
+  $("map").dataset.journey = j.id;
+  document.querySelectorAll("#in-start,#in-dest,[data-arm]").forEach(el => { el.disabled = true; });
+  showJourney(j);
+  $("status").innerHTML = `Following journey <b class="mono">${esc(j.id)}</b>. Pick a scenario to send simulated GPS points.`;
 }
 
 /* ---------------- start-up ---------------- */
@@ -666,13 +754,17 @@ $("m-finish").onclick = async () => {
 (async () => {
   try {
     const cfg = await fetch(API + "/maps-config").then(r => r.json());
-    if (!cfg.maps_enabled) throw new Error("No Google key on the server. Put GOOGLE_MAPS_API_KEY in backend/.env and restart.");
+    if (!cfg.maps_enabled) throw new Error("No separate browser key on the server. Put GOOGLE_MAPS_BROWSER_KEY in backend/.env and restart.");
     await loadGoogle(cfg.browser_key);
     await initMap();
-    setPlace("start", DEFAULT_HOME);
-    setPlace("dest", DEFAULT_DEST);
+    if (EMBED) startEmbed();
+    else if (ATTACH) await attachJourney();
+    else {
+      setPlace("start", DEFAULT_HOME);
+      setPlace("dest", DEFAULT_DEST);
+    }
   } catch (e) {
-    $("map").innerHTML = `<div class="mapmsg"><div><b>Map unavailable.</b><br>${esc(e.message)}</div></div>`;
+    mapFailed(e.message);
   }
   refreshCards();
 })();

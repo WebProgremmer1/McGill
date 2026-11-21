@@ -12,18 +12,18 @@ Open the URL printed by Vite (normally `http://localhost:5173`).
 
 ## Presenting
 
-Open `/signup` in two browser windows on the same Vite origin. Under **Try the demo**, choose **I’m signing up for myself** in one window to open Today at `/`, and **I’m a caregiver** in the other to open the Care dashboard at `/manage`. The URL is each window’s role, so reloading or changing one window does not affect the other. The cards create no account or session. Until the auth backend exists, these screens use neutral headings and show no person’s name. Replay and reset are presenter tools at `http://127.0.0.1:8000/docs`, or:
+Open `/signup` in two browser windows on the same Vite origin. Under **Try the demo**, choose **I’m signing up for myself** in one window to open the Patient dashboard at `/`, and **I’m a caregiver** in the other to open the Care dashboard at `/manage`. The URL is each window’s role, so reloading or changing one window does not affect the other. The cards create no account or session. Until the auth backend exists, these screens use neutral headings and show no person’s name. Replay and reset are presenter tools at `http://127.0.0.1:8000/docs`, or:
 
 ```powershell
 Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/demo/reset
 Invoke-RestMethod -Method Post http://127.0.0.1:8000/api/demo/run
 ```
 
-Reset clears backend journeys, reminders, and help requests. The replay gives Today a check-in. Both screens poll every two seconds and follow the newest active journey.
+Reset clears backend journeys, reminders, messages, and help requests. The replay gives the Patient dashboard a check-in. Both screens poll every two seconds and follow the newest active journey.
 
 ## Destinations
 
-Today offers only places with a usable route. From Home that is **Go to Tim Hortons**, the backend’s one predefined route. **Go home** appears once the person is away from Home and follows the known route back. The backend has no street names, so directions are approximate and start from the last known location. Today and the Care dashboard embed the backend map through Vite’s `/viewer` proxy.
+The Patient dashboard offers only places with a usable route. From Home that is **Go to Tim Hortons**, the backend’s one predefined route. **Go home** appears once the person is away from Home and follows the known route back. The backend has no street names, so directions are approximate and start from the last known location. Both dashboards embed the backend map through Vite’s `/viewer` proxy and pass it the same journey ID. They use the Google viewer when FastAPI has a separate browser key, and the backup map otherwise. To send simulated GPS points to the current journey, open `/viewer/live-map.html?journey=active` on the same origin and pick a scenario. Key setup is in `backend/README.md`.
 
 ## Sign-in and care circles
 
@@ -33,16 +33,20 @@ Today offers only places with a usable route. From Home that is **Go to Tim Hort
 
 In the open demo, **Send reminder** stores a closed demo record through FastAPI’s journeys API because no reminders route exists yet. Both dashboards read it by polling, and it has no sender. With the account API, the backend records the signed-in sender. A portrait and relationship appear only when that person’s profile includes them. Otherwise, initials and the name are shown.
 
+## Messages
+
+**Message caregiver** sends a short note through `POST /api/messages`. Notes appear under **Messages** on the Care dashboard and stay separate from urgent help requests and journeys. They are kept in memory, so restart FastAPI after pulling this route and expect them to clear on restart or demo reset.
+
 ## Help and calling
 
 **Get help**, or **Ask [caregiver] for help** once a caregiver is linked, creates a backend help request for the Care dashboard. It does not call or notify anyone. A **Call** action appears only when the backend returns that person’s phone number. No phone number is stored in source.
 
 ## Mock walkthrough
 
-1. Open `/?mode=mock` in one tab for the Today board.
+1. Open `/?mode=mock` in one tab for the Patient dashboard.
 2. Open `/manage?mode=mock` in a second tab in the same browser profile and on the same origin (same hostname and port).
 3. On the Care dashboard, select **Reset demo**, then **Simulate off-route walk**.
-4. Return to Today. The inline check-in asks **“Still heading to Maple Market?”**. A polite live region announces it once per check-in per mounted Today board.
+4. Return to the Patient dashboard. The inline check-in asks **“Still heading to Maple Market?”**. A polite live region announces it once per check-in per mounted dashboard.
 5. Use Tab / Shift+Tab to reach **Keep going**, **Show directions**, or **Get help**, then Enter / Space to activate. Focus has a visible outline and buttons are at least 68px tall.
 6. **Keep going** displays reassurance. **Show directions** expands fictional walking instructions. **Get help** creates a simulated request visible immediately on the Care dashboard. The choices remain available; repeat clicks preserve the existing request.
 7. **Reset demo** clears the check-in and request across both tabs so you can repeat. Refreshing preserves the demo until reset.

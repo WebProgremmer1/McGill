@@ -6,7 +6,7 @@ import './SignUp.css'
 // Plain links: the URL is the role, so no session, account, or browser setting is created.
 const demoRoles = [
   { href: '/manage', label: 'I’m a caregiver', opens: 'Opens Care dashboard', icon: 'users' },
-  { href: '/', label: 'I’m signing up for myself', opens: 'Opens Today', icon: 'person' },
+  { href: '/', label: 'I’m signing up for myself', opens: 'Opens Patient dashboard', icon: 'person' },
 ]
 
 const roles = [

@@ -63,6 +63,9 @@ class JourneyCreate(BaseModel):
     predefined_route: str | None = Field(
         None, description="Name of an offline route, e.g. 'tim_hortons_demo'."
     )
+    fallback_route: str | None = Field(
+        None, description="Offline route to use if Google Routes cannot provide a walking route."
+    )
     safe_zones: list[SafeZone] = Field(default_factory=list)
     started_at: datetime | None = Field(
         None, description="Journey start time. Defaults to now; set it for simulations."
@@ -127,6 +130,20 @@ class CheckInRequest(BaseModel):
             ]
         }
     }
+
+
+# ---------------------------------------------------------------- demo messages
+class MessageCreate(BaseModel):
+    body: str = Field(..., min_length=1, max_length=280, examples=["I got home safely."])
+
+    model_config = {"str_strip_whitespace": True}
+
+
+class Message(BaseModel):
+    """An ordinary note to a caregiver. It is never an alert or a journey."""
+    id: str = Field(default_factory=lambda: new_id("msg"))
+    body: str
+    created_at: datetime
 
 
 # ---------------------------------------------------------------- risk

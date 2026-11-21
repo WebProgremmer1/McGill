@@ -15,7 +15,7 @@ from .demo import run_demo
 from .errors import ApiError
 from .models import (
     DISCLAIMER, Alert, CheckIn, CheckInRequest, CheckInResult, Journey,
-    JourneyCreate, LocationResult, LocationUpdate, Place, RouteRequest,
+    JourneyCreate, LocationResult, LocationUpdate, Message, MessageCreate, Place, RouteRequest,
 )
 from .routes_provider import PREDEFINED_ROUTES, RouteProvider
 from .service import JourneyService
@@ -68,10 +68,10 @@ def create_app(settings: Settings | None = None, route_provider: RouteProvider |
 
     @app.get("/api/maps-config", tags=["live map"])
     def maps_config():
-        """The Google key for the live map page. A Maps JavaScript key always ends up
-        in the browser, so restrict it to http://localhost:8000/* in Google Cloud."""
-        return {"browser_key": settings.google_browser_key,
-                "maps_enabled": bool(settings.google_browser_key)}
+        """The separate browser key for the map. The server key is never returned.
+        Restrict this key to every website origin that serves the map."""
+        key = settings.public_browser_key
+        return {"browser_key": key, "maps_enabled": bool(key)}
 
     @app.post("/api/expected-route", tags=["live map"])
     def expected_route(body: RouteRequest):
@@ -125,6 +125,14 @@ def create_app(settings: Settings | None = None, route_provider: RouteProvider |
     @app.post("/api/alerts/{alert_id}/acknowledge", response_model=Alert, tags=["alerts"])
     def acknowledge(alert_id: str):
         return service.acknowledge(alert_id)
+
+    @app.get("/api/messages", response_model=list[Message], tags=["messages"])
+    def list_messages():
+        return service.list_messages()
+
+    @app.post("/api/messages", response_model=Message, status_code=201, tags=["messages"])
+    def create_message(body: MessageCreate):
+        return service.add_message(body)
 
     @app.post("/api/demo/run", tags=["demo"])
     def demo_run():

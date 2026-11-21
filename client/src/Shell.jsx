@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 
 // Each dashboard is its own screen. The role comes only from the URL it was opened at.
 export default function Shell({ family, heading, plainBrand = false, action, footer, children }) {
-  const title = heading || (family ? 'Care dashboard' : 'Today')
+  const title = heading || (family ? 'Care dashboard' : 'Patient dashboard')
 
   useEffect(() => {
     document.title = title

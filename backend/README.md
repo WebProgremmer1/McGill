@@ -21,9 +21,16 @@ Then open one of these:
   A log shows every GPS point: how far off the route it was, the score, and which rules added points.
 * http://localhost:8000/docs: every endpoint.
 
-The live map needs `GOOGLE_MAPS_API_KEY` in `.env`, with **Routes API**, **Maps JavaScript API**
-and **Places API** turned on for that key in Google Cloud. The page loads the key in the browser,
-so restrict it to `http://localhost:8000/*` (or put a separate browser key in `GOOGLE_MAPS_BROWSER_KEY`).
+The live map uses two keys in the Git-ignored `.env`:
+
+* `GOOGLE_MAPS_API_KEY`: **server only**. Restrict it to the **Routes API**.
+* `GOOGLE_MAPS_BROWSER_KEY`: a **separate** key for the page. Restrict it to the **Maps JavaScript API**
+  and **Places API**, and to these websites: `http://localhost:5173/*` (the map embedded in the dashboards)
+  and `http://localhost:8000/*` (the full viewer). If Vite uses another port or host, add that exact origin.
+
+The server never sends `GOOGLE_MAPS_API_KEY` to a browser. If the browser key is blank or the same as the
+server key, the dashboards use the backup map. To drive an existing journey with simulated GPS, open
+`/viewer/live-map.html?journey=active`.
 
 Other commands:
 

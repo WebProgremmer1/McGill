@@ -6,13 +6,14 @@ from datetime import datetime, timezone
 from .errors import ApiError, not_found
 from .models import (
     Alert, CheckIn, CheckInRequest, CheckInResult, Journey, JourneyCreate,
-    LocationResult, LocationUpdate, RiskAssessment, TrackPoint, MIN,
+    LocationResult, LocationUpdate, Message, MessageCreate, RiskAssessment, TrackPoint, MIN,
 )
 from .risk import assess
 from .routes_provider import RouteProvider
 
 CHECKIN_COOLDOWN = 10 * MIN  # journey-time gap between automatic check-ins
 CHECKIN_OPTIONS = ["I'm okay", "Show me the way", "I need help"]
+MAX_MESSAGES = 100  # the in-memory demo keeps only the newest messages
 
 
 def _now() -> datetime:
@@ -45,16 +46,28 @@ class JourneyService:
         self.journeys: dict[str, Journey] = {}
         self.checkins: dict[str, CheckIn] = {}
         self.alerts: dict[str, Alert] = {}
+        self.messages: list[Message] = []
 
     def reset(self) -> None:
         self.journeys.clear()
         self.checkins.clear()
         self.alerts.clear()
+        self.messages.clear()
+
+    # ---------------------------------------------------------- demo messages
+    def add_message(self, req: MessageCreate) -> Message:
+        message = Message(body=req.body, created_at=_now())
+        self.messages.append(message)
+        del self.messages[:-MAX_MESSAGES]
+        return message
+
+    def list_messages(self) -> list[Message]:
+        return list(reversed(self.messages))  # newest first
 
     # ---------------------------------------------------------- journeys
     def create_journey(self, req: JourneyCreate) -> Journey:
         started = req.started_at or _now()
-        route = self.routes.resolve(req.start, req.destination, req.route, req.predefined_route)
+        route = self.routes.resolve(req.start, req.destination, req.route, req.predefined_route, req.fallback_route)
         j = Journey(
             user_name=req.user_name,
             start=req.start,

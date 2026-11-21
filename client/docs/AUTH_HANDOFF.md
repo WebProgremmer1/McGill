@@ -25,6 +25,7 @@ Errors use the existing shape: `{ "error": { "code", "message", "details": { "fi
 | `POST /api/circles/join` | Join from `{ "code" }` | `200` circle, `404` or `422` field `code` |
 | `GET /api/circles/{id}` | Authorize a dashboard | `200` circle, `401`, `403` |
 | `GET`, `PUT /api/circles/{id}/reminder` | Read or send `{ "message" }` | `200`, `401`, `403`, `422` |
+| `GET`, `POST /api/circles/{id}/messages` | Read messages, or send `{ "body" }` | `200` or `201`, `401`, `403`, `422` |
 | `GET`, `POST /api/circles/{id}/journeys` | Read or start that circle's journeys | `200` or `201`, `401`, `403` |
 | `GET /api/circles/{id}/journeys/{journey}/checkins` | Check-ins | `200`, `401`, `403` |
 | `POST /api/circles/{id}/journeys/{journey}/checkin` | Answer or request help | `200`, `401`, `403` |
@@ -42,7 +43,7 @@ Session shape. Each circle lists the permissions the **server** granted, usually
   "circles": [{
     "id": "circle_1",
     "name": "Fictional care circle",
-    "permissions": ["view_today", "view_dashboard", "read_reminders", "send_reminders", "read_journey", "start_journey", "read_help", "request_help"],
+    "permissions": ["view_today", "view_dashboard", "read_reminders", "send_reminders", "read_messages", "send_messages", "read_journey", "start_journey", "read_help", "request_help"],
     "care_recipient": { "id": "acct_2", "name": "Fictional Relative", "given_name": "Fictional" },
     "caregivers": [{ "id": "acct_1", "name": "Fictional Person", "given_name": "Fictional", "relationship": "friend", "photo_url": "/fictional.jpg", "phone": "configured-number" }]
   }]
@@ -54,6 +55,8 @@ Session shape. Each circle lists the permissions the **server** granted, usually
 `care_recipient` is `null` when nobody is linked. `relationship`, `photo_url`, and `phone` are optional. On a caregiver, `relationship` describes them relative to the care recipient. On `care_recipient`, it describes that person relative to the signed-in viewer.
 
 `GET /api/circles/{id}/reminder` returns `{ "message": "...", "sender": { person } }`, or `null` for both. Set the sender from the session, never from the request body.
+
+`GET /api/circles/{id}/messages` returns newest first: `{ "id", "body", "created_at", "sender": { person } }`. Require `send_messages` to send and `read_messages` to read. Close the open demo `/api/messages` route before real use.
 
 Help currently requires a journey, so the client creates and closes a placeholder journey when someone asks for help before a walk. A `POST /api/circles/{id}/help` endpoint would remove that workaround. The open demo similarly stores reminders as closed `Demo reminder` journeys until the reminder routes exist.
 

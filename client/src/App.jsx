@@ -141,7 +141,7 @@ function Family({ state }) {
             <Icon name="walk" />Simulate off-route walk
           </button>
           <p className="simulation-status">
-            {checkIn ? demoData.responses[checkIn.response] ?? 'Check-in sent. Waiting for a response.' : 'Open Today in another tab to see the check-in.'}
+            {checkIn ? demoData.responses[checkIn.response] ?? 'Check-in sent. Waiting for a response.' : 'Open Patient dashboard in another window to see the check-in.'}
           </p>
           <button className="text-button" onClick={demoStore.reset}>Reset demo</button>
           <p className="fine-print">Reset clears the check-in and help request in both tabs.</p>

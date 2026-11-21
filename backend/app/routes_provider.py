@@ -60,29 +60,37 @@ class RouteProvider:
         dest: Place,
         client_route: list[Coordinates] | None,
         predefined: str | None,
+        fallback_route: str | None = None,
     ) -> RouteResult:
         if client_route:
             return RouteResult(client_route, "client")
         if predefined:
-            if predefined not in PREDEFINED_ROUTES:
-                raise ApiError(
-                    422,
-                    "unknown_predefined_route",
-                    f"Unknown predefined_route '{predefined}'.",
-                    {"available": sorted(PREDEFINED_ROUTES)},
-                )
-            pts = _coords(PREDEFINED_ROUTES[predefined])
-            return RouteResult(pts, "predefined")
+            return RouteResult(self._predefined(predefined), "predefined")
+        backup = self._predefined(fallback_route) if fallback_route else None
         if not self.settings.google_enabled:
             reason = (
                 "ROUTE_MODE=offline"
                 if self.settings.route_mode == "offline"
                 else "GOOGLE_MAPS_API_KEY is not set"
             )
-            return self._fallback(start, dest, f"{reason}; using a straight-line route.")
-        return self._google(start, dest)
+            result = self._fallback(start, dest, f"{reason}; using a straight-line route.")
+        else:
+            result = self._google(start, dest)
+        if backup and result.source == "fallback_straight_line":
+            return RouteResult(backup, "predefined", result.warning)
+        return result
 
     # ------------------------------------------------------------------
+    def _predefined(self, name: str) -> list[Coordinates]:
+        if name not in PREDEFINED_ROUTES:
+            raise ApiError(
+                422,
+                "unknown_predefined_route",
+                f"Unknown predefined_route '{name}'.",
+                {"available": sorted(PREDEFINED_ROUTES)},
+            )
+        return _coords(PREDEFINED_ROUTES[name])
+
     def _fallback(self, start: Place, dest: Place, warning: str) -> RouteResult:
         pts = [
             Coordinates(latitude=start.latitude, longitude=start.longitude),

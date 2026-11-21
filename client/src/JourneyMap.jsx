@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
-import { viewerUrl } from './data/journeyApi.js'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { readMapsConfig, viewerUrl } from './data/journeyApi.js'
 
-// Runs inside the backend viewer's Leaflet map. Labels come from the API journey
-// because the viewer's own route drawing hardcodes Home and Tim Hortons.
+// Backup map: runs inside the backend's Leaflet viewer. Labels come from the API journey
+// because that viewer's own route drawing hardcodes Home and Tim Hortons.
 const drawInViewer = `(text) => {
   const journey = JSON.parse(text);
   reset();
@@ -22,7 +22,7 @@ const drawInViewer = `(text) => {
   map.fitBounds(L.latLngBounds(points.concat([start, end])).pad(0.35));
 }`
 
-export default function JourneyMap({ journey }) {
+function BackupJourneyMap({ journey }) {
   const frame = useRef(null)
   const draw = useRef(null)
   const [status, setStatus] = useState('loading')
@@ -54,7 +54,7 @@ export default function JourneyMap({ journey }) {
       const viewer = frame.current.contentWindow
       if (!viewer.L || !viewer.reset) throw new Error('Viewer did not load.')
       const style = viewer.document.createElement('style')
-      // The panel's controls create journeys and alerts, so Today shows only the map.
+      // The panel's controls create journeys and alerts, so dashboards show only the map.
       style.textContent = '#panel { display: none !important; } body { height: 100vh; }'
       viewer.document.head.append(style)
       draw.current = viewer.eval(drawInViewer)
@@ -65,10 +65,86 @@ export default function JourneyMap({ journey }) {
   }
 
   return (
-    <div className="journey-map">
+    <>
       <iframe ref={frame} src={viewerUrl} title={`Map of the walk to ${journey.destination.name}`}
         className={status === 'ready' ? undefined : 'map-pending'} onLoad={handleLoad} />
       {status !== 'ready' && <p className="map-status">{status === 'loading' ? 'Loading map…' : 'Map unavailable.'}</p>}
+    </>
+  )
+}
+
+function GoogleJourneyMap({ journey, onFailed }) {
+  const frame = useRef(null)
+  const [ready, setReady] = useState(false)
+  const payload = JSON.stringify({
+    id: journey.id,
+    route: journey.route,
+    route_source: journey.route_source,
+    route_warning: journey.route_warning,
+    route_distance_m: journey.route_distance_m,
+    route_duration_s: journey.route_duration_s,
+    safe_zones: journey.safe_zones,
+    start: journey.start,
+    destination: journey.destination,
+    track: journey.track,
+    risk: { level: journey.risk.level },
+  })
+
+  useEffect(() => {
+    function receive(event) {
+      if (event.origin !== window.location.origin || event.source !== frame.current?.contentWindow) return
+      if (event.data?.type !== 'whats-next-map' || event.data.journey !== journey.id) return
+      if (event.data.status === 'ready') setReady(true)
+      if (event.data.status === 'failed') onFailed()
+    }
+    window.addEventListener('message', receive)
+    return () => window.removeEventListener('message', receive)
+  }, [journey.id, onFailed])
+
+  useEffect(() => {
+    if (ready) return undefined
+    const timer = setTimeout(onFailed, 15000)
+    return () => clearTimeout(timer)
+  }, [onFailed, ready])
+
+  // The dashboard passes only the journey it was already authorized to read.
+  useEffect(() => {
+    if (!ready) return
+    frame.current?.contentWindow?.postMessage({ type: 'whats-next-journey', journey: JSON.parse(payload) }, window.location.origin)
+  }, [payload, ready])
+
+  return (
+    <>
+      <iframe ref={frame} src={`/viewer/live-map.html?embed=1&journey=${encodeURIComponent(journey.id)}`}
+        title={`Google map of the walk to ${journey.destination.name}`} className={ready ? undefined : 'map-pending'} />
+      {!ready && <p className="map-status">Loading map…</p>}
+    </>
+  )
+}
+
+export default function JourneyMap({ journey }) {
+  const [provider, setProvider] = useState('checking')
+  const [googleFailed, setGoogleFailed] = useState(false)
+
+  useEffect(() => {
+    let active = true
+    readMapsConfig().then(config => {
+      if (active) setProvider(config.maps_enabled ? 'google' : 'backup')
+    })
+    return () => { active = false }
+  }, [])
+
+  const useBackup = useCallback(() => {
+    setGoogleFailed(true)
+    setProvider('backup')
+  }, [])
+
+  return (
+    <div className="journey-map" data-journey-id={journey.id} data-map-provider={provider} data-route-source={journey.route_source}>
+      {provider === 'checking' && <p className="map-status">Loading map…</p>}
+      {provider === 'google' && <GoogleJourneyMap key={journey.id} journey={journey} onFailed={useBackup} />}
+      {provider === 'backup' && <BackupJourneyMap journey={journey} />}
+      {googleFailed && <p className="map-note" role="status">Google map unavailable. Showing the backup map.</p>}
     </div>
   )
 }

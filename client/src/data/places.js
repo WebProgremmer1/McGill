@@ -83,7 +83,8 @@ export function destinationOptions(journeys, availableRoutes, userName) {
       id: 'tim-hortons',
       label: 'Go to Tim Hortons',
       icon: 'cup',
-      build: () => journeyRequest(home, timHortons, { predefined_route: routeName }, userName),
+      // Google is tried first when configured. The demo route remains the backend's fallback.
+      build: useGoogle => journeyRequest(home, timHortons, useGoogle ? { fallback_route: routeName } : { predefined_route: routeName }, userName),
     }]
   }
   if (headingTo === home.name) return []
@@ -133,7 +134,8 @@ export function directionSteps(journey) {
     if (meters < 5) return
     const heading = bearing(previous, point)
     const leg = legs.at(-1)
-    if (leg && Math.abs(signedTurn(leg.heading, heading)) < 30) leg.meters += meters
+    // Detailed walking routes have tiny bends, so very short legs join the current step.
+    if (leg && (meters < 25 || Math.abs(signedTurn(leg.heading, heading)) < 30)) leg.meters += meters
     else legs.push({ heading, meters })
   })
   const steps = legs.map((leg, index) => {

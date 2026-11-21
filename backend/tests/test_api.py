@@ -322,9 +322,14 @@ def test_maps_config_without_key(client):
     assert client.get("/api/maps-config").json() == {"browser_key": None, "maps_enabled": False}
 
 
-def test_maps_config_reuses_server_key():
+def test_maps_config_never_exposes_server_key():
     c = TestClient(create_app(Settings(google_api_key="k", google_browser_key="k")))
-    assert c.get("/api/maps-config").json()["maps_enabled"] is True
+    assert c.get("/api/maps-config").json() == {"browser_key": None, "maps_enabled": False}
+
+
+def test_maps_config_uses_separate_browser_key():
+    c = TestClient(create_app(Settings(google_api_key="server", google_browser_key="browser")))
+    assert c.get("/api/maps-config").json() == {"browser_key": "browser", "maps_enabled": True}
 
 
 def test_expected_route_offline_is_straight_line(client):
@@ -360,6 +365,12 @@ def test_google_success_decodes_polyline():
     _, j = _create(_provider(handler))
     assert j["route_source"] == "google_routes" and j["route_warning"] is None
     assert j["route_duration_s"] == 700 and len(j["route"]) == 3
+
+
+def test_google_failure_uses_demo_fallback_route():
+    c = TestClient(_provider(lambda req: httpx.Response(500, json={"error": {"message": "down"}})))
+    j = make_journey(c, predefined_route=None, fallback_route="tim_hortons_demo")
+    assert j["route_source"] == "predefined" and len(j["route"]) == 5 and "HTTP 500" in j["route_warning"]
 
 
 def test_google_http_error_falls_back():
