@@ -1,8 +1,6 @@
-.env
+﻿.env
 .venv/
 venv/
 __pycache__/
 *.pyc
 .pytest_cache/
-secrets/
-client_secret_*.json

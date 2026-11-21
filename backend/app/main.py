@@ -10,12 +10,9 @@ from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from .accounts_api import build_router
 from .config import Settings
-from .db import Store, create_store
 from .demo import run_demo
 from .errors import ApiError
-from .google_auth import GoogleAuth
 from .models import (
     DISCLAIMER, Alert, CheckIn, CheckInRequest, CheckInResult, Journey,
     JourneyCreate, LocationResult, LocationUpdate, Place, RouteRequest,
@@ -24,12 +21,9 @@ from .routes_provider import PREDEFINED_ROUTES, RouteProvider
 from .service import JourneyService
 
 
-def create_app(settings: Settings | None = None, route_provider: RouteProvider | None = None,
-               store: Store | None = None, google: GoogleAuth | None = None) -> FastAPI:
+def create_app(settings: Settings | None = None, route_provider: RouteProvider | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     service = JourneyService(route_provider or RouteProvider(settings))
-    store = store or create_store(settings)
-    google = google or GoogleAuth(settings, store)
 
     app = FastAPI(
         title="Cognitive Safety Backend (hackathon prototype)",
@@ -41,8 +35,6 @@ def create_app(settings: Settings | None = None, route_provider: RouteProvider |
         allow_methods=["*"], allow_headers=["*"],
     )
     app.state.service = service
-    app.state.store = store
-    app.state.google = google
 
     # ------------------------------------------------------------ errors
     def err(status: int, code: str, message: str, details=None) -> JSONResponse:
@@ -71,9 +63,6 @@ def create_app(settings: Settings | None = None, route_provider: RouteProvider |
             "status": "ok",
             "google_routes_configured": settings.google_enabled,
             "route_mode": settings.route_mode,
-            "database": store.kind,
-            "database_ok": store.ping(),
-            "google_oauth_configured": google.configured,
             "disclaimer": DISCLAIMER,
         }
 
@@ -147,8 +136,6 @@ def create_app(settings: Settings | None = None, route_provider: RouteProvider |
     def demo_reset():
         service.reset()
         return {"status": "reset"}
-
-    app.include_router(build_router(store, google, settings.google_oauth_done_url))
 
     @app.get("/", include_in_schema=False)
     def root():
