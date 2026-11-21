@@ -1,0 +1,63 @@
+{
+  "journey_id": "normal",
+  "expected_route": [
+    [
+      45.5017,
+      -73.5673
+    ],
+    [
+      45.5025,
+      -73.5673
+    ],
+    [
+      45.5033,
+      -73.5673
+    ],
+    [
+      45.5041,
+      -73.5673
+    ],
+    [
+      45.5057,
+      -73.5673
+    ]
+  ],
+  "gps_history": [
+    {
+      "latitude": 45.5017,
+      "longitude": -73.5673,
+      "timestamp": 1805756400,
+      "accuracy_meters": 5
+    },
+    {
+      "latitude": 45.5025,
+      "longitude": -73.5673,
+      "timestamp": 1805756460,
+      "accuracy_meters": 5
+    },
+    {
+      "latitude": 45.5033,
+      "longitude": -73.5673,
+      "timestamp": 1805756520,
+      "accuracy_meters": 5
+    },
+    {
+      "latitude": 45.5041,
+      "longitude": -73.5673,
+      "timestamp": 1805756580,
+      "accuracy_meters": 5
+    },
+    {
+      "latitude": 45.5049,
+      "longitude": -73.5673,
+      "timestamp": 1805756640,
+      "accuracy_meters": 5
+    },
+    {
+      "latitude": 45.5057,
+      "longitude": -73.5673,
+      "timestamp": 1805756700,
+      "accuracy_meters": 5
+    }
+  ]
+}

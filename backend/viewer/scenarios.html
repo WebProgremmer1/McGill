@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Walk Safety Live Demo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: scenario picker across the top; map | live risk panel; then phone check-in + caregiver live feed. */
+:root{
+  --bg:#f2f5f7; --surface:#fff; --ink:#15212b; --muted:#5b6b78; --line:#d9e1e7; --grid:#e8eef2;
+  --route:#2f5d86; --corridor:rgba(47,93,134,.12); --accent:#2f5d86;
+  --low:#2e8b57; --low-bg:#e3f3ea; --med:#b7791f; --med-bg:#fbf0dc; --high:#c2412d; --high-bg:#fbe5e1;
+  --crit:#8e1b5a; --crit-bg:#f7e1ee; --ghost:#b9c6d0;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"Figtree",system-ui,-apple-system,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0f161c; --surface:#16212a; --ink:#e4ecf2; --muted:#93a4b2; --line:#26343f; --grid:#1c2932;
+  --route:#7fb2e0; --corridor:rgba(127,178,224,.14); --accent:#7fb2e0;
+  --low:#5cc28a; --low-bg:#173326; --med:#e0a84a; --med-bg:#3a2c14; --high:#f0735e; --high-bg:#3f1e19;
+  --crit:#f08bc0; --crit-bg:#3d1a2e; --ghost:#3a4b58; color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body)}
+.wrap{max-width:1240px;margin:0 auto;padding:22px max(16px,env(safe-area-inset-left)) 40px;display:grid;gap:16px}
+h1,h2{font-family:var(--f-display);margin:0;text-wrap:balance}
+h1{font-size:clamp(24px,3.4vw,32px)}
+h2{font-size:16px}
+.lede{color:var(--muted);margin:4px 0 0;max-width:80ch}
+.eyebrow{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;min-width:0}
+
+.picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}
+.sc{all:unset;cursor:pointer;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:3px}
+.sc:hover{border-color:var(--accent)} .sc:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sc[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.sc b{font-family:var(--f-display);font-size:14.5px}
+.sc small{color:var(--muted);font-size:12px;line-height:1.35}
+.sc .tag{font-family:var(--f-mono);font-size:10.5px;color:var(--accent)}
+.sc[disabled]{opacity:.5;cursor:wait}
+
+.bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:10px 14px}
+.bar label{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.btn{all:unset;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:5px 12px;font-size:13px;font-weight:600}
+.btn:hover{border-color:var(--accent)} .btn.primary{background:var(--accent);color:var(--surface);border-color:var(--accent)}
+.status{font-size:13.5px;flex:1;min-width:200px}
+.status b{font-weight:600}
+.silent{background:var(--high-bg);color:var(--high);padding:3px 10px;border-radius:6px;font-weight:600}
+
+.stage{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;align-items:start}
+@media(max-width:900px){.stage{grid-template-columns:1fr}}
+.mapcard{padding:8px}
+#map{width:100%;height:auto;display:block}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;padding:4px 8px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:16px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
+
+.panel{padding:16px;display:grid;gap:14px}
+.scoreline{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.score{font-family:var(--f-display);font-size:58px;line-height:.9;font-weight:700;font-variant-numeric:tabular-nums}
+.score small{font-size:16px;color:var(--muted);font-weight:500}
+.lvl{font-family:var(--f-mono);font-size:12.5px;padding:3px 9px;border-radius:6px;text-transform:uppercase;letter-spacing:.06em}
+.lvl.low{background:var(--low-bg);color:var(--low)} .lvl.medium{background:var(--med-bg);color:var(--med)} .lvl.high{background:var(--high-bg);color:var(--high)}
+.reasons{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+.reasons li{display:grid;grid-template-columns:44px 1fr;gap:8px;font-size:13.5px}
+.reasons .pts{font-family:var(--f-mono);font-weight:500;text-align:right;color:var(--muted)}
+.reasons .none{grid-template-columns:1fr;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12.5px;padding:3px 9px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+.chip b{font-weight:600;color:var(--ink)}
+.chip.good{border-color:transparent;background:var(--low-bg);color:var(--low)} .chip.good b{color:var(--low)}
+.chip.warn{border-color:transparent;background:var(--med-bg);color:var(--med)} .chip.warn b{color:var(--med)}
+.chip.bad{border-color:transparent;background:var(--high-bg);color:var(--high)} .chip.bad b{color:var(--high)}
+dl.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 12px;margin:0}
+dl.stats dt{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+dl.stats dd{margin:0;font-family:var(--f-mono);font-size:14px}
+#spark{width:100%;height:70px;display:block}
+
+.bottom{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:16px;align-items:start}
+@media(max-width:900px){.bottom{grid-template-columns:1fr}}
+.phone{padding:16px;display:grid;gap:10px}
+.screen{border:1px solid var(--line);border-radius:22px;padding:16px;min-height:170px;display:grid;gap:10px;align-content:start;background:var(--bg)}
+.bubble{background:var(--surface);border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:10px 12px;font-size:14px}
+.opts{display:flex;flex-wrap:wrap;gap:6px}
+.opts .btn{font-weight:500;background:var(--surface)}
+.opts .btn.help{color:var(--high);border-color:var(--high)}
+.empty{color:var(--muted);font-size:13px}
+
+.feed{padding:16px;display:grid;gap:10px}
+.feedhead{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.live{font-size:12px;font-family:var(--f-mono);color:var(--muted);display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ghost)} .dot.on{background:var(--low)}
+#events{list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:420px;overflow:auto}
+#events li{border:1px solid var(--line);border-radius:10px;padding:9px 12px;display:grid;gap:4px;font-size:13.5px}
+#events li.new{animation:flash 1.2s ease-out}
+@keyframes flash{from{background:var(--med-bg)}to{background:transparent}}
+@media (prefers-reduced-motion:reduce){#events li.new{animation:none}}
+.evtop{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+.evtype{font-family:var(--f-mono);font-size:11.5px;padding:2px 7px;border-radius:5px;background:var(--grid)}
+.evtype.alert{background:var(--high-bg);color:var(--high)} .evtype.crit{background:var(--crit-bg);color:var(--crit)}
+.evtype.ok{background:var(--low-bg);color:var(--low)} .evtype.chk{background:var(--med-bg);color:var(--med)}
+.evtime{font-family:var(--f-mono);font-size:11.5px;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Live demo · real backend · simulated walks</div>
+    <h1>Walk safety, live</h1>
+    <p class="lede">Each scenario sends GPS points to the real API one by one, about every 30 seconds of walk time. The right panel shows what the risk engine says after each point. The caregiver feed at the bottom is a live push stream (<span class="mono">/api/events</span>) with no polling. Margaret is walking from Home to Tim Hortons.</p>
+  </header>
+
+  <nav class="picker" id="picker" aria-label="Scenarios"></nav>
+
+  <div class="card bar">
+    <div class="status" id="status">Pick a scenario to start.</div>
+    <label>Speed <input type="range" id="speed" min="80" max="900" value="350" aria-label="Delay between GPS points"></label>
+    <button class="btn" id="stop" type="button">Stop</button>
+    <button class="btn" id="reset" type="button">Clear everything</button>
+  </div>
+
+  <section class="stage">
+    <div class="card mapcard">
+      <svg id="map" viewBox="0 0 640 460" role="img" aria-label="Map of the route and the walk"></svg>
+      <div class="legend">
+        <span><i style="background:var(--route);height:3px"></i>Planned route</span>
+        <span><i style="background:var(--corridor)"></i>100 m "on route" band</span>
+        <span><i style="background:var(--low)"></i><i style="background:var(--med)"></i><i style="background:var(--high)"></i>Trail coloured by risk level</span>
+        <span>✕ GPS reading thrown out</span>
+      </div>
+    </div>
+    <aside class="card panel" aria-live="polite">
+      <div>
+        <div class="eyebrow">Risk right now</div>
+        <div class="scoreline"><div class="score" id="score">0<small>/100</small></div><span class="lvl low" id="lvl">low</span></div>
+      </div>
+      <ul class="reasons" id="reasons"><li class="none">No concerns.</li></ul>
+      <div class="chips" id="chips"></div>
+      <dl class="stats">
+        <div><dt>Walk time</dt><dd id="s-time">–</dd></div>
+        <div><dt>From route</dt><dd id="s-route">–</dd></div>
+        <div><dt>GPS used / dropped</dt><dd id="s-gps">–</dd></div>
+      </dl>
+      <svg id="spark" viewBox="0 0 400 70" preserveAspectRatio="none" aria-label="Risk score over the walk"></svg>
+    </aside>
+  </section>
+
+  <section class="bottom">
+    <div class="card phone">
+      <h2>Margaret's phone</h2>
+      <div class="screen" id="phone"><div class="empty">Check-ins appear here when the risk is medium.</div></div>
+    </div>
+    <div class="card feed">
+      <div class="feedhead"><h2>Caregiver feed</h2><span class="live"><span class="dot" id="dot"></span><span id="livetxt">connecting…</span></span></div>
+      <ul id="events"><li class="empty" id="noevents">Alerts and check-ins are pushed here the moment they happen.</li></ul>
+    </div>
+  </section>
+</div>
+
+<script>
+const API = "/api";
+const HOME = [45.5048, -73.5772], SHOP = [45.5088, -73.5697];
+const ROUTE = [[45.5048,-73.5772],[45.5060,-73.5754],[45.5072,-73.5736],[45.5080,-73.5717],[45.5088,-73.5697]];
+const R = 6371008.8, COS = Math.cos(HOME[0] * Math.PI / 180);
+const toXY = ([lat, lng]) => [(lng - HOME[1]) * Math.PI / 180 * R * COS, (lat - HOME[0]) * Math.PI / 180 * R];
+const fromXY = ([x, y]) => [HOME[0] + y / R * 180 / Math.PI, HOME[1] + x / (R * COS) * 180 / Math.PI];
+const RXY = ROUTE.map(toXY), SHOPXY = toXY(SHOP);
+const STEP = 39; // metres per 30 s at 1.3 m/s
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ---------- path building (metres, relative to Home) ---------- */
+const segLen = i => Math.hypot(RXY[i + 1][0] - RXY[i][0], RXY[i + 1][1] - RXY[i][1]);
+const routeLen = () => RXY.slice(1).reduce((t, _, i) => t + segLen(i), 0);
+function pointAt(s) {
+  for (let i = 0; i < RXY.length - 1; i++) {
+    const L = segLen(i);
+    if (s <= L) return [RXY[i][0] + (RXY[i + 1][0] - RXY[i][0]) * s / L, RXY[i][1] + (RXY[i + 1][1] - RXY[i][1]) * s / L];
+    s -= L;
+  }
+  return [...RXY[RXY.length - 1]];
+}
+function pathBuilder() {
+  const pts = [];
+  const last = () => pts[pts.length - 1].xy;
+  const b = {
+    pts,
+    routeS: null,                          // metres already walked along the route
+    alongRoute(toM) {
+      const total = routeLen();
+      let s = b.routeS === null ? 0 : b.routeS + STEP;
+      for (; s <= Math.min(toM, total); s += STEP) { pts.push({ xy: pointAt(s) }); b.routeS = s; }
+      if (toM >= total && b.routeS < total) { pts.push({ xy: pointAt(total) }); b.routeS = total; }
+      return b;
+    },
+    go(dir, metres) {                      // dir: [east, north] unit vector, or "shop"
+      for (let m = STEP; m <= metres + 1; m += STEP) {
+        const p = last();
+        let d = dir;
+        if (dir === "shop") { const v = [SHOPXY[0] - p[0], SHOPXY[1] - p[1]], n = Math.hypot(...v); if (n < STEP) { pts.push({ xy: SHOPXY }); return b; } d = [v[0] / n, v[1] / n]; }
+        pts.push({ xy: [p[0] + d[0] * STEP, p[1] + d[1] * STEP] });
+      }
+      return b;
+    },
+    square(side, laps) {
+      const o = last(), c = [[side, 0], [side, side], [0, side], [0, 0]];
+      for (let l = 0; l < laps; l++) for (const [dx, dy] of c) {
+        const p = last(), q = [o[0] + dx, o[1] + dy];
+        const n = Math.max(1, Math.round(Math.hypot(q[0] - p[0], q[1] - p[1]) / STEP));
+        for (let k = 1; k <= n; k++) pts.push({ xy: [p[0] + (q[0] - p[0]) * k / n, p[1] + (q[1] - p[1]) * k / n] });
+      }
+      return b;
+    },
+    stay(n) { for (let i = 0; i < n; i++) pts.push({ xy: [...last()] }); return b; },
+    mark(extra) { Object.assign(pts[pts.length - 1], extra); return b; },
+  };
+  return b;
+}
+const unit = deg => [Math.sin(deg * Math.PI / 180), Math.cos(deg * Math.PI / 180)]; // compass bearing
+
+const SCENARIOS = [
+  { key: "normal", title: "Normal walk", tag: "baseline", blurb: "Follows the route and arrives. Stays low the whole way.",
+    build: () => pathBuilder().alongRoute(2000).pts },
+  { key: "detour", title: "Another street, right way", tag: "#6 toward", blurb: "Leaves the route but keeps heading to Tim Hortons. Only a few points.",
+    build: () => pathBuilder().alongRoute(200).go(unit(0), 300).go("shop", 900).pts },
+  { key: "away", title: "Walks the wrong way", tag: "#6 away", blurb: "Turns and walks away from the destination. Check-in on her phone.",
+    build: () => pathBuilder().alongRoute(240).go(unit(280), 520).pts },
+  { key: "loop", title: "Circles, then finds the way", tag: "#5 back on track", blurb: "Goes round a block twice, then walks to the shop. Risk falls back to low.",
+    build: () => pathBuilder().alongRoute(300).go(unit(300), 160).square(80, 2).go("shop", 1200).pts },
+  { key: "noisy", title: "Bad GPS", tag: "filtering", blurb: "Normal walk with GPS spikes and fuzzy readings. No false alarm.",
+    build: () => { const p = pathBuilder().alongRoute(2000).pts;
+      [4, 9, 14].forEach(i => { if (p[i]) p[i] = { xy: [p[i].xy[0] - 700, p[i].xy[1] + 250], spike: true }; });
+      [6, 11].forEach(i => { if (p[i]) p[i] = { ...p[i], acc: 90 }; });
+      return p; } },
+  { key: "silent", title: "Phone goes quiet", tag: "no-signal alert", blurb: "GPS stops mid-walk. The caregiver is warned live, then the alert clears when GPS returns.",
+    watch: true,
+    build: () => pathBuilder().alongRoute(260).mark({ silenceAfter: true }).alongRoute(2000).pts },
+  { key: "lost", title: "Lost and stopped", tag: "high alert", blurb: "Walks away, circles, then stands still. Escalates to a caregiver alert.",
+    build: () => pathBuilder().alongRoute(260).go(unit(290), 200).square(70, 2).stay(13).pts },
+];
+
+/* ---------- map ---------- */
+const W = 640, H = 460;
+let S, OX, OY, trailG, markG;
+function sx(p) { return OX + p[0] * S; } function sy(p) { return H - (OY + p[1] * S); }
+function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent && parent.appendChild(e); return e; }
+function drawMap() {
+  const svg = $("map"); svg.innerHTML = "";
+  const xs = RXY.map(p => p[0]), ys = RXY.map(p => p[1]);
+  const x0 = Math.min(...xs) - 380, x1 = Math.max(...xs) + 160, y0 = Math.min(...ys) - 240, y1 = Math.max(...ys) + 160;
+  S = Math.min(W / (x1 - x0), H / (y1 - y0)); OX = (W - (x1 - x0) * S) / 2 - x0 * S; OY = (H - (y1 - y0) * S) / 2 - y0 * S;
+  const g = el("g", { stroke: "var(--grid)" }, svg);
+  for (let x = Math.ceil(x0 / 100) * 100; x <= x1; x += 100) el("line", { x1: sx([x, 0]), x2: sx([x, 0]), y1: 0, y2: H }, g);
+  for (let y = Math.ceil(y0 / 100) * 100; y <= y1; y += 100) el("line", { y1: sy([0, y]), y2: sy([0, y]), x1: 0, x2: W }, g);
+  const pts = RXY.map(p => sx(p) + "," + sy(p)).join(" ");
+  el("polyline", { points: pts, fill: "none", stroke: "var(--corridor)", "stroke-width": 200 * S, "stroke-linecap": "round", "stroke-linejoin": "round" }, svg);
+  el("polyline", { points: pts, fill: "none", stroke: "var(--route)", "stroke-width": 3, "stroke-dasharray": "7 5" }, svg);
+  el("circle", { cx: sx(SHOPXY), cy: sy(SHOPXY), r: 50 * S, fill: "var(--low-bg)", stroke: "var(--low)" }, svg);
+  el("circle", { cx: sx([0, 0]), cy: sy([0, 0]), r: 6, fill: "var(--surface)", stroke: "var(--ink)", "stroke-width": 2 }, svg);
+  const t = (p, s, dy) => { const e = el("text", { x: sx(p), y: sy(p) + dy, "text-anchor": "middle", "font-size": 12.5, "font-weight": 600, fill: "var(--ink)", "font-family": "var(--f-body)" }, svg); e.textContent = s; };
+  t([0, 0], "Home", 22); t(SHOPXY, "Tim Hortons", -50 * S - 8);
+  el("rect", { x: 14, y: H - 20, width: 200 * S, height: 4, fill: "var(--ink)" }, svg);
+  const sb = el("text", { x: 14, y: H - 26, "font-size": 11, fill: "var(--muted)", "font-family": "var(--f-mono)" }, svg); sb.textContent = "200 m · grid 100 m";
+  trailG = el("g", {}, svg); markG = el("g", {}, svg);
+}
+const lvlColor = l => l === "high" ? "var(--high)" : l === "medium" ? "var(--med)" : "var(--low)";
+
+/* ---------- risk panel ---------- */
+const HEAD = { toward: ["good", "heading toward Tim Hortons"], sideways: ["warn", "moving sideways"], away: ["bad", "walking away"], stopped: ["bad", "not moving"] };
+let scores = [];
+function showRisk(risk, minute) {
+  $("score").innerHTML = `${risk.score}<small>/100</small>`;
+  $("lvl").className = "lvl " + risk.level; $("lvl").textContent = risk.level;
+  $("reasons").innerHTML = risk.reasons.length
+    ? risk.reasons.map(r => `<li><span class="pts">+${r.points}</span><span>${r.description}</span></li>`).join("")
+    : `<li class="none">${risk.arrived ? "Arrived at Tim Hortons." : "No concerns."}</li>`;
+  const chips = [];
+  if (risk.heading) { const [k, t] = HEAD[risk.heading]; chips.push(`<span class="chip ${k}">Direction: <b>${t}</b></span>`); }
+  if (risk.making_progress === true) chips.push(`<span class="chip good"><b>Back on track</b> · ${Math.round(risk.progress_m)} m closer in 5 min</span>`);
+  else if (risk.making_progress === false) chips.push(`<span class="chip">Progress: <b>none in 5 min</b></span>`);
+  if (risk.detour_extra_min != null) chips.push(`<span class="chip warn">Detour: <b>+${Math.round(risk.detour_extra_min)} min</b></span>`);
+  chips.push(risk.data_status === "ok" ? `<span class="chip good">GPS <b>ok</b></span>` : `<span class="chip bad">GPS <b>stale / not enough</b></span>`);
+  if (risk.arrived) chips.push(`<span class="chip good"><b>Arrived</b></span>`);
+  $("chips").innerHTML = chips.join("");
+  $("s-time").textContent = `${minute.toFixed(1)} min`;
+  $("s-route").textContent = risk.distance_from_route_m == null ? "–" : `${Math.round(risk.distance_from_route_m)} m`;
+  $("s-gps").textContent = `${risk.accepted_readings} / ${risk.discarded_readings}`;
+  scores.push(risk); drawSpark();
+}
+function drawSpark() {
+  const svg = $("spark"); svg.innerHTML = "";
+  [[30, "var(--med-bg)", 60], [60, "var(--high-bg)", 100]].forEach(([a, f, b]) => el("rect", { x: 0, y: 70 - b * .66, width: 400, height: (b - a) * .66, fill: f }, svg));
+  if (!scores.length) return;
+  const dx = 400 / Math.max(scores.length - 1, 1);
+  let d = ""; scores.forEach((r, i) => { const x = i * dx, y = 68 - r.score * .66; d += i ? `H${x}V${y}` : `M0 ${y}`; });
+  el("path", { d, fill: "none", stroke: "var(--ink)", "stroke-width": 2, "vector-effect": "non-scaling-stroke" }, svg);
+}
+
+/* ---------- phone ---------- */
+function showCheckin(c, jid) {
+  $("phone").innerHTML = `<div class="bubble">${c.message}</div><div class="opts">${c.options.map(o =>
+    `<button class="btn ${o === "I need help" ? "help" : ""}" type="button">${o}</button>`).join("")}</div>`;
+  $("phone").querySelectorAll("button").forEach(b => b.onclick = async () => {
+    const body = b.textContent === "I need help" ? { help_requested: true } : { response: b.textContent };
+    await post(`/journeys/${jid}/checkin`, body).catch(() => {});
+    $("phone").innerHTML = `<div class="bubble">You answered: <b>${b.textContent}</b></div>`;
+  });
+}
+
+/* ---------- live feed (Server-Sent Events) ---------- */
+const listeners = [];
+function connectFeed() {
+  const es = new EventSource(`${API}/events?types=alert_created,alert_acknowledged,alert_resolved,checkin_created,checkin_answered,journey_ended`);
+  es.onopen = () => { $("dot").className = "dot on"; $("livetxt").textContent = "live"; };
+  es.onerror = () => { $("dot").className = "dot"; $("livetxt").textContent = "reconnecting…"; };
+  ["alert_created", "alert_acknowledged", "alert_resolved", "checkin_created", "checkin_answered", "journey_ended"]
+    .forEach(t => es.addEventListener(t, e => { const ev = JSON.parse(e.data); addEvent(ev); listeners.forEach(f => f(ev)); }));
+}
+function addEvent(ev) {
+  $("noevents")?.remove();
+  const d = ev.data, li = document.createElement("li"); li.className = "new";
+  let cls = "", title = ev.type.replace("_", " "), body = "", action = "";
+  if (ev.type === "alert_created") {
+    cls = d.priority === "critical" ? "crit" : "alert";
+    title = d.type === "no_signal" ? "No signal alert" : d.type === "help_request" ? "Help button pressed" : `Risk alert · ${d.risk_score}/100`;
+    body = d.message;
+    action = `<button class="btn" type="button" data-ack="${d.id}">Acknowledge</button>`;
+  } else if (ev.type === "alert_resolved") { cls = "ok"; title = "Signal back"; body = "GPS is reporting again; the no-signal alert is resolved.";
+  } else if (ev.type === "alert_acknowledged") { cls = "ok"; title = "Alert acknowledged"; body = d.message.slice(0, 90) + "…";
+  } else if (ev.type === "checkin_created") { cls = "chk"; title = "Check-in sent to Margaret"; body = d.message;
+  } else if (ev.type === "checkin_answered") { cls = "ok"; title = "Margaret answered"; body = `"${d.response}"`;
+  } else { title = "Journey ended"; body = `Status: ${d.status}`; }
+  li.innerHTML = `<div class="evtop"><span class="evtype ${cls}">${title}</span><span class="evtime">#${ev.id} · ${new Date(ev.sent_at).toLocaleTimeString()}</span></div><div>${body}</div>${action ? `<div>${action}</div>` : ""}`;
+  li.querySelector("[data-ack]")?.addEventListener("click", async e => { e.target.disabled = true; await post(`/alerts/${e.target.dataset.ack}/acknowledge`); e.target.textContent = "Acknowledged"; });
+  $("events").prepend(li);
+}
+
+/* ---------- runner ---------- */
+async function post(path, body) {
+  const r = await fetch(API + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json(); if (!r.ok) throw j.error; return j;
+}
+let running = null;
+async function run(sc) {
+  if (running) running.stop = true;
+  const me = running = { stop: false };
+  document.querySelectorAll(".sc").forEach(b => b.setAttribute("aria-pressed", b.dataset.key === sc.key));
+  drawMap(); scores = []; drawSpark();
+  $("phone").innerHTML = `<div class="empty">Check-ins appear here when the risk is medium.</div>`;
+  const t0 = new Date(Math.floor(Date.now() / 1000) * 1000);
+  const iso = m => new Date(t0.getTime() + m * 60000).toISOString();
+  const journey = await post("/journeys", {
+    user_name: "Margaret",
+    start: { name: "Home", latitude: HOME[0], longitude: HOME[1] },
+    destination: { name: "Tim Hortons", latitude: SHOP[0], longitude: SHOP[1] },
+    expected_arrival: iso(14), started_at: iso(0), predefined_route: "tim_hortons_demo",
+    signal_watch: !!sc.watch,
+    safe_zones: [{ name: "Home", latitude: HOME[0], longitude: HOME[1], radius_m: 75 }],
+  });
+  const pts = sc.build();
+  let prev = null, dropped = 0;
+  for (let i = 0; i < pts.length; i++) {
+    if (me.stop) return;
+    const p = pts[i], minute = i * 0.5, [lat, lng] = fromXY(p.xy);
+    $("status").innerHTML = `<b>${sc.title}</b> · GPS point ${i + 1} of ${pts.length}${p.spike ? " · <span class='silent'>GPS spike</span>" : p.acc ? " · <span class='silent'>fuzzy reading ±" + p.acc + " m</span>" : ""}`;
+    const res = await post(`/journeys/${journey.id}/location`, { latitude: lat, longitude: lng, timestamp: iso(minute), accuracy_m: p.acc ?? 8 });
+    const thrown = res.risk.discarded_readings > dropped; dropped = res.risk.discarded_readings;
+    if (thrown) {
+      const x = sx(p.xy), y = sy(p.xy);
+      el("path", { d: `M${x - 5} ${y - 5}L${x + 5} ${y + 5}M${x + 5} ${y - 5}L${x - 5} ${y + 5}`, stroke: "var(--high)", "stroke-width": 2.2 }, trailG);
+    } else {
+      if (prev) el("line", { x1: sx(prev), y1: sy(prev), x2: sx(p.xy), y2: sy(p.xy), stroke: lvlColor(res.risk.level), "stroke-width": 4.5, "stroke-linecap": "round" }, trailG);
+      prev = p.xy;
+      markG.innerHTML = ""; el("circle", { cx: sx(p.xy), cy: sy(p.xy), r: 7.5, fill: lvlColor(res.risk.level), stroke: "var(--surface)", "stroke-width": 2.5 }, markG);
+    }
+    showRisk(res.risk, minute);
+    if (res.checkin_created) showCheckin(res.checkin_created, journey.id);
+    if (p.silenceAfter) await silence(journey.id, me);
+    await sleep(+$("speed").value);
+  }
+  if (me.stop) return;
+  await post(`/journeys/${journey.id}/complete`).catch(() => {});
+  $("status").innerHTML = `<b>${sc.title}</b> finished. Pick another scenario.`;
+  running = null;
+}
+function silence(jid, me) {
+  return new Promise(resolve => {
+    const started = Date.now();
+    const tick = setInterval(() => {
+      const s = Math.round((Date.now() - started) / 1000);
+      $("status").innerHTML = `<b>Phone goes quiet</b> · <span class="silent">no GPS for ${s} s</span> · the server watchdog will warn the caregiver`;
+      if (me.stop) done();
+    }, 250);
+    const onEvent = ev => { if (ev.type === "alert_created" && ev.data.type === "no_signal" && ev.journey_id === jid) setTimeout(done, 2500); };
+    listeners.push(onEvent);
+    const timeout = setTimeout(done, 90000);
+    function done() { clearInterval(tick); clearTimeout(timeout); listeners.splice(listeners.indexOf(onEvent), 1); resolve(); }
+  });
+}
+
+/* ---------- boot ---------- */
+SCENARIOS.forEach(sc => {
+  const b = document.createElement("button"); b.className = "sc"; b.type = "button"; b.dataset.key = sc.key;
+  b.innerHTML = `<span class="tag">${sc.tag}</span><b>${sc.title}</b><small>${sc.blurb}</small>`;
+  b.onclick = () => run(sc).catch(e => { $("status").textContent = "Error: " + (e.message || JSON.stringify(e)); running = null; });
+  $("picker").appendChild(b);
+});
+$("stop").onclick = () => { if (running) running.stop = true; $("status").textContent = "Stopped."; };
+$("reset").onclick = async () => { if (running) running.stop = true; await post("/demo/reset"); $("events").innerHTML = `<li class="empty" id="noevents">Alerts and check-ins are pushed here the moment they happen.</li>`; drawMap(); scores = []; drawSpark(); $("status").textContent = "Cleared."; };
+drawMap(); connectFeed();
+</script>
+</body>
+</html>

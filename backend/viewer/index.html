@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Safety Demo Viewer</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  body { margin:0; font-family: Arial, sans-serif; display:flex; height:100vh; }
+  #map { flex:1; }
+  #panel { width:350px; padding:16px; overflow:auto; background:#fafafa; border-left:1px solid #ddd; box-sizing:border-box; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  h2 { font-size:14px; margin:16px 0 6px; }
+  .note { font-size:11px; color:#666; margin-bottom:10px; }
+  button { font-size:14px; padding:9px 12px; border:0; border-radius:6px; background:#1a73e8; color:#fff; cursor:pointer; margin:3px 3px 3px 0; }
+  button.wide { width:100%; font-size:16px; padding:10px; margin:0; }
+  button.red { background:#d93025; } button.grey { background:#666; }
+  button:disabled { background:#aaa; cursor:default; }
+  #score { font-size:56px; font-weight:bold; margin:12px 0 0; }
+  #level { display:inline-block; padding:4px 12px; border-radius:12px; color:#fff; font-weight:bold; background:#2e9e4f; }
+  #time { color:#555; margin:4px 0 4px; }
+  #hint { background:#e8f0fe; border-radius:6px; padding:8px; font-size:13px; display:none; margin-top:8px; }
+  ul { padding-left:18px; margin:6px 0; }
+  .event { margin:10px 0; padding:10px; border-radius:6px; font-size:14px; }
+  .checkin { background:#fff4d6; border:1px solid #f0b400; }
+  .alert { background:#fde3e1; border:1px solid #d93025; }
+  .err { color:#d93025; font-size:13px; }
+  select { font-size:14px; padding:4px; }
+  hr { border:0; border-top:1px solid #ddd; margin:14px 0; }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="panel">
+  <h1>Walk to Tim Hortons</h1>
+  <div class="note">Simulated, fictional user. Experimental heuristics, not medical or for real emergencies.</div>
+
+  <h2>1. Watch the scripted demo</h2>
+  <button class="wide" id="play">Play demo</button>
+
+  <hr>
+  <h2>2. Try it yourself</h2>
+  <button class="wide" id="live">Start my own journey</button>
+  <div id="hint">
+    <b>Click the map</b> to move Margaret there.<br>
+    Minutes that pass per move: <select id="mins"><option>1</option><option>2</option><option>5</option><option>10</option></select><br>
+    <button id="stay" class="grey">Stay here (wait)</button>
+    <button id="help" class="red">I need help</button>
+    <button id="ok" class="grey" style="display:none">Answer check-in: I'm okay</button>
+    <button id="done" class="grey">Finish journey</button>
+    <div class="note">Try: wander &gt;100 m off the blue line, then press "Stay here" with 5-10 minutes selected, a few times.</div>
+  </div>
+  <div class="err" id="err"></div>
+
+  <div id="score">0</div>
+  <span id="level">low</span>
+  <div id="time">Ready</div>
+  <div id="what"></div>
+  <ul id="reasons"></ul>
+  <div id="events"></div>
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const COLORS = { low: "#2e9e4f", medium: "#f0a000", high: "#d93025" };
+const HOME = [45.5048, -73.5772], SHOP = [45.5088, -73.5697];
+const map = L.map("map").setView([45.506, -73.575], 16);
+L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(map);
+let layers = [];
+let live = null; // {id, clock, last, marker}
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const api = async (path, body) => {
+  const r = await fetch("/api" + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error ? j.error.message : "Request failed");
+  return j;
+};
+
+function reset() {
+  layers.forEach(l => map.removeLayer(l)); layers = [];
+  $("events").innerHTML = ""; $("reasons").innerHTML = ""; $("err").textContent = "";
+  $("score").textContent = "0"; $("level").textContent = "low"; $("level").style.background = COLORS.low;
+  $("what").textContent = ""; $("time").textContent = "Ready";
+}
+function show(risk, label, when) {
+  $("score").textContent = risk.score;
+  $("level").textContent = risk.level; $("level").style.background = COLORS[risk.level];
+  $("time").textContent = when; $("what").textContent = label;
+  $("reasons").innerHTML = risk.reasons.map(r => "<li>" + r.description + "</li>").join("");
+}
+function addEvent(cls, title, text) {
+  $("events").insertAdjacentHTML("beforeend", '<div class="event ' + cls + '"><b>' + title + "</b><br>" + text + "</div>");
+}
+function drawRoute(route, zones) {
+  (zones || []).forEach(z => layers.push(L.circle([z.latitude, z.longitude], { radius: z.radius_m, color: "#2e9e4f", weight: 2, fillColor: "#2e9e4f", fillOpacity: 0.07, dashArray: "6" }).addTo(map).bindTooltip("Safe zone (" + z.radius_m + " m)", { sticky: true })));
+  const pts = route.map(p => [p.latitude, p.longitude]);
+  layers.push(L.polyline(pts, { color: "#1a73e8", weight: 5, opacity: 0.6 }).addTo(map));
+  layers.push(L.circleMarker(pts[0], { radius: 10, color: "#fff", weight: 3, fillColor: "#1a73e8", fillOpacity: 1 }).addTo(map).bindTooltip("Home", { permanent: true, direction: "left" }));
+  layers.push(L.marker(pts[pts.length - 1]).addTo(map).bindTooltip("Tim Hortons", { permanent: true }));
+  map.fitBounds(L.latLngBounds(pts).pad(1.2));
+}
+
+// ------------------------------------------------ scripted demo
+async function play() {
+  live = null; $("hint").style.display = "none"; $("play").disabled = true; reset();
+  try {
+    const demo = await api("/demo/run");
+    const journey = await (await fetch("/api/journeys/" + demo.journey_id)).json();
+    drawRoute(journey.route, journey.safe_zones);
+    let marker = null, prev = null;
+    for (const s of demo.steps) {
+      const pt = [s.latitude, s.longitude];
+      if (prev) layers.push(L.polyline([prev, pt], { color: COLORS[s.level], weight: 4 }).addTo(map));
+      if (marker) map.removeLayer(marker);
+      marker = L.circleMarker(pt, { radius: 9, color: "#000", fillColor: COLORS[s.level], fillOpacity: 1 }).addTo(map);
+      layers.push(marker); prev = pt;
+      show({ score: s.score, level: s.level, reasons: s.reasons.map(r => ({ description: r.replace(/_/g, " ") })) }, s.description, "Minute " + s.minute);
+      if (s.checkin_created) addEvent("checkin", "Check-in sent to Margaret", s.checkin_created);
+      if (s.alert_created) addEvent("alert", "CAREGIVER ALERT", s.alert_created);
+      map.panTo(pt);
+      await sleep(1400);
+    }
+  } catch (e) { $("err").textContent = e.message; }
+  $("play").disabled = false; $("play").textContent = "Play again";
+}
+
+// ------------------------------------------------ interactive mode
+async function startLive() {
+  reset();
+  try {
+    const now = new Date();
+    const j = await api("/journeys", {
+      user_name: "Margaret",
+      start: { name: "Home", latitude: HOME[0], longitude: HOME[1] },
+      destination: { name: "Tim Hortons", latitude: SHOP[0], longitude: SHOP[1] },
+      expected_arrival: new Date(now.getTime() + 15 * 60000).toISOString(),
+      started_at: now.toISOString(),
+      predefined_route: "tim_hortons_demo",
+      safe_zones: [
+        { name: "Home", latitude: HOME[0], longitude: HOME[1], radius_m: 75 },
+        { name: "Tim Hortons", latitude: SHOP[0], longitude: SHOP[1], radius_m: 75 },
+      ],
+    });
+    live = { id: j.id, clock: now, last: null, marker: null, prev: null };
+    drawRoute(j.route, j.safe_zones);
+    $("hint").style.display = "block"; $("ok").style.display = "none";
+    $("time").textContent = "Journey started. Click the map to move Margaret.";
+  } catch (e) { $("err").textContent = e.message; }
+}
+async function move(lat, lng) {
+  if (!live) return;
+  $("err").textContent = "";
+  live.clock = new Date(live.clock.getTime() + Number($("mins").value) * 60000);
+  try {
+    const res = await api("/journeys/" + live.id + "/location", { latitude: lat, longitude: lng, timestamp: live.clock.toISOString() });
+    const pt = [lat, lng];
+    if (live.prev) layers.push(L.polyline([live.prev, pt], { color: COLORS[res.risk.level], weight: 4 }).addTo(map));
+    if (live.marker) map.removeLayer(live.marker);
+    live.marker = L.circleMarker(pt, { radius: 9, color: "#000", fillColor: COLORS[res.risk.level], fillOpacity: 1 }).addTo(map);
+    layers.push(live.marker); live.prev = pt; live.last = pt;
+    const t = live.clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    show(res.risk, "Action: " + res.risk.recommended_action.replace(/_/g, " "), "Simulated time " + t);
+    if (res.checkin_created) { addEvent("checkin", "Check-in sent to Margaret", res.checkin_created.message); $("ok").style.display = "inline-block"; }
+    if (res.alert_created) addEvent("alert", "CAREGIVER ALERT", res.alert_created.message);
+  } catch (e) { $("err").textContent = e.message; }
+}
+map.on("click", e => move(e.latlng.lat, e.latlng.lng));
+$("stay").onclick = () => live && live.last ? move(live.last[0], live.last[1]) : ($("err").textContent = "Click the map first.");
+$("help").onclick = async () => {
+  if (!live) return;
+  try {
+    const r = await api("/journeys/" + live.id + "/checkin", { help_requested: true });
+    addEvent("alert", "URGENT HELP REQUEST" + (r.deduplicated ? " (already sent)" : ""), r.alert.message);
+  } catch (e) { $("err").textContent = e.message; }
+};
+$("ok").onclick = async () => {
+  try { await api("/journeys/" + live.id + "/checkin", { response: "I'm okay" }); $("ok").style.display = "none"; addEvent("checkin", "Margaret answered", "I'm okay"); }
+  catch (e) { $("err").textContent = e.message; }
+};
+$("done").onclick = async () => {
+  if (!live) return;
+  try { await api("/journeys/" + live.id + "/complete"); $("time").textContent = "Journey finished."; live = null; $("hint").style.display = "none"; }
+  catch (e) { $("err").textContent = e.message; }
+};
+$("play").onclick = play;
+$("live").onclick = startLive;
+</script>
+</body>
+</html>
