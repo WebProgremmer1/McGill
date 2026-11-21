@@ -5,18 +5,24 @@ crash the API: we fall back to a straight line and attach a warning."""
 from __future__ import annotations
 
 import logging
+import ssl
 from dataclasses import dataclass
 
 import httpx
+import truststore
 
 from .config import Settings
 from .errors import ApiError
-from .geo import decode_polyline, haversine_m
+from .geo import decode_polyline, distance_m
 from .models import Coordinates, Place
 
 log = logging.getLogger("routes")
 
 GOOGLE_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
+
+# Trust the same HTTPS certificates as Windows / your browser. Without this, antivirus
+# that inspects HTTPS (e.g. Norton Web Shield) makes every call to Google fail.
+SSL_CONTEXT = truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
 
 # Fictional demo route (McGill area, Montreal): home -> "Tim Hortons".
 PREDEFINED_ROUTES: dict[str, list[tuple[float, float]]] = {
@@ -82,7 +88,7 @@ class RouteProvider:
             Coordinates(latitude=start.latitude, longitude=start.longitude),
             Coordinates(latitude=dest.latitude, longitude=dest.longitude),
         ]
-        dist = haversine_m(start.latitude, start.longitude, dest.latitude, dest.longitude)
+        dist = distance_m(start, dest)
         return RouteResult(pts, "fallback_straight_line", warning, dist, int(dist / 1.3))
 
     def _google(self, start: Place, dest: Place) -> RouteResult:
@@ -97,7 +103,7 @@ class RouteProvider:
             "Content-Type": "application/json",
         }
         try:
-            client = self._client or httpx.Client(timeout=8.0)
+            client = self._client or httpx.Client(timeout=8.0, verify=SSL_CONTEXT)
             resp = client.post(GOOGLE_URL, json=body, headers=headers)
         except httpx.HTTPError as exc:
             log.warning("Google Routes request failed: %s", type(exc).__name__)

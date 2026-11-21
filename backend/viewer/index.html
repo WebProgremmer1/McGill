@@ -26,6 +26,7 @@
   .alert { background:#fde3e1; border:1px solid #d93025; }
   .err { color:#d93025; font-size:13px; }
   select { font-size:14px; padding:4px; }
+  .bigtip { font-size:15px; font-weight:bold; letter-spacing:1px; }
   hr { border:0; border-top:1px solid #ddd; margin:14px 0; }
 </style>
 </head>
@@ -34,6 +35,7 @@
 <div id="panel">
   <h1>Walk to Tim Hortons</h1>
   <div class="note">Simulated, fictional user. Experimental heuristics, not medical or for real emergencies.</div>
+  <div class="note"><a href="live-map.html">Open the live Google map version</a> (needs a Google key in .env)</div>
 
   <h2>1. Watch the scripted demo</h2>
   <button class="wide" id="play">Play demo</button>
@@ -86,7 +88,7 @@ function show(risk, label, when) {
   $("score").textContent = risk.score;
   $("level").textContent = risk.level; $("level").style.background = COLORS[risk.level];
   $("time").textContent = when; $("what").textContent = label;
-  $("reasons").innerHTML = risk.reasons.map(r => "<li>" + r.description + "</li>").join("");
+  $("reasons").innerHTML = risk.reasons.map(r => "<li>" + r.description + (r.points ? " (+" + r.points + ")" : "") + "</li>").join("");
 }
 function addEvent(cls, title, text) {
   $("events").insertAdjacentHTML("beforeend", '<div class="event ' + cls + '"><b>' + title + "</b><br>" + text + "</div>");
@@ -95,8 +97,8 @@ function drawRoute(route, zones) {
   (zones || []).forEach(z => layers.push(L.circle([z.latitude, z.longitude], { radius: z.radius_m, color: "#2e9e4f", weight: 2, fillColor: "#2e9e4f", fillOpacity: 0.07, dashArray: "6" }).addTo(map).bindTooltip("Safe zone (" + z.radius_m + " m)", { sticky: true })));
   const pts = route.map(p => [p.latitude, p.longitude]);
   layers.push(L.polyline(pts, { color: "#1a73e8", weight: 5, opacity: 0.6 }).addTo(map));
-  layers.push(L.circleMarker(pts[0], { radius: 10, color: "#fff", weight: 3, fillColor: "#1a73e8", fillOpacity: 1 }).addTo(map).bindTooltip("Home", { permanent: true, direction: "left" }));
-  layers.push(L.marker(pts[pts.length - 1]).addTo(map).bindTooltip("Tim Hortons", { permanent: true }));
+  layers.push(L.circleMarker(pts[0], { radius: 10, color: "#fff", weight: 3, fillColor: "#1a73e8", fillOpacity: 1 }).addTo(map).bindTooltip("HOME", { permanent: true, direction: "left", className: "bigtip" }));
+  layers.push(L.marker(pts[pts.length - 1]).addTo(map).bindTooltip("DESTINATION", { permanent: true, className: "bigtip" }));
   map.fitBounds(L.latLngBounds(pts).pad(1.2));
 }
 
@@ -114,7 +116,7 @@ async function play() {
       if (marker) map.removeLayer(marker);
       marker = L.circleMarker(pt, { radius: 9, color: "#000", fillColor: COLORS[s.level], fillOpacity: 1 }).addTo(map);
       layers.push(marker); prev = pt;
-      show({ score: s.score, level: s.level, reasons: s.reasons.map(r => ({ description: r.replace(/_/g, " ") })) }, s.description, "Minute " + s.minute);
+      show({ score: s.score, level: s.level, reasons: s.reason_details.map(d => ({ description: d })) }, s.description, "Minute " + s.minute);
       if (s.checkin_created) addEvent("checkin", "Check-in sent to Margaret", s.checkin_created);
       if (s.alert_created) addEvent("alert", "CAREGIVER ALERT", s.alert_created);
       map.panTo(pt);
@@ -141,7 +143,7 @@ async function startLive() {
         { name: "Tim Hortons", latitude: SHOP[0], longitude: SHOP[1], radius_m: 75 },
       ],
     });
-    live = { id: j.id, clock: now, last: null, marker: null, prev: null };
+    live = { id: j.id, clock: now, due: new Date(j.expected_arrival), last: null, marker: null, prev: null };
     drawRoute(j.route, j.safe_zones);
     $("hint").style.display = "block"; $("ok").style.display = "none";
     $("time").textContent = "Journey started. Click the map to move Margaret.";
@@ -159,7 +161,9 @@ async function move(lat, lng) {
     live.marker = L.circleMarker(pt, { radius: 9, color: "#000", fillColor: COLORS[res.risk.level], fillOpacity: 1 }).addTo(map);
     layers.push(live.marker); live.prev = pt; live.last = pt;
     const t = live.clock.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    show(res.risk, "Action: " + res.risk.recommended_action.replace(/_/g, " "), "Simulated time " + t);
+    const due = live.due.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const mins = Math.round((live.clock - live.due) / 60000);
+    show(res.risk, "Action: " + res.risk.recommended_action.replace(/_/g, " "), "Time " + t + " (expected by " + due + (mins > 0 ? ", " + mins + " min late" : "") + ")");
     if (res.checkin_created) { addEvent("checkin", "Check-in sent to Margaret", res.checkin_created.message); $("ok").style.display = "inline-block"; }
     if (res.alert_created) addEvent("alert", "CAREGIVER ALERT", res.alert_created.message);
   } catch (e) { $("err").textContent = e.message; }

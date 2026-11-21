@@ -1,7 +1,7 @@
 """Scripted demo: a fictional user walks to Tim Hortons, gets lost, and escalates.
 
-It feeds simulated GPS points (with simulated timestamps) through the REAL
-JourneyService / risk engine. Nothing here is a hardcoded score.
+It feeds pretend GPS points (with pretend timestamps) through the REAL
+JourneyService and risk engine. No score here is hardcoded.
 
 Run from the backend folder:  python -m app.demo
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from .config import Settings
-from .geo import interpolate_route, offset_point
+from .geo import offset_point
 from .models import JourneyCreate, LocationUpdate, Place, SafeZone
 from .routes_provider import PREDEFINED_ROUTES, RouteProvider
 from .service import JourneyService
@@ -20,36 +20,25 @@ T0 = datetime(2026, 1, 1, 9, 0, tzinfo=timezone.utc)
 
 def _timeline(route):
     """Yield (minute, phase, description, lat, lng)."""
-    # unit vectors (north, east) along the walk, and perpendicular to it
-    heading = (0.6, 0.8)
-    perp = (0.8, -0.6)
+    # 1. normal walking along the first three route points
+    for minute, p in zip((0, 2, 4), route):
+        yield minute, "normal", "Walking normally along the route", p.latitude, p.longitude
 
-    def at(base, n_along, n_perp):
-        return offset_point(
-            base[0], base[1],
-            heading[0] * n_along + perp[0] * n_perp,
-            heading[1] * n_along + perp[1] * n_perp,
-        )
+    # 2. turns off to the south-east (the route goes north-east)
+    turn = route[2]
+    yield 5, "deviation", "Turns down a side street", *offset_point(turn.latitude, turn.longitude, -80, 80)
 
-    # 1. normal walking
-    for m in (0, 2, 4):
-        lat, lng = interpolate_route(route, m / 10)
-        yield m, "normal", "Walking normally along the route", lat, lng
+    # 3. walks round the same block twice (corners A -> B -> C)
+    a = offset_point(turn.latitude, turn.longitude, -180, 180)
+    b = offset_point(*a, -70, 0)   # 70 m south of A
+    c = offset_point(*a, -70, 70)  # then 70 m east
+    corners = {"A": a, "B": b, "C": c}
+    for i, name in enumerate("ABCABC"):
+        yield 6 + i, "loop", f"Circling the block (corner {name})", *corners[name]
 
-    # 2. leaves the route
-    branch = interpolate_route(route, 0.4)
-    yield 5, "deviation", "Turns down a side street", *at(branch, 0, 250)
-
-    # 3. walks round the same three corners twice
-    base = at(branch, 0, 300)
-    corners = {"A": at(base, 0, 0), "B": at(base, 70, 0), "C": at(base, 70, 70)}
-    for i, c in enumerate("ABCABC"):
-        yield 6 + i, "loop", f"Circling the block (corner {c})", *corners[c]
-
-    # 4. stands still for 7 minutes
-    clat, clng = corners["C"]
-    yield 12, "stationary", "Stops and stands still", clat, clng
-    yield 18, "stationary", "Still standing, looks confused", clat, clng
+    # 4. stops at corner C and stands still
+    yield 12, "stationary", "Stops and stands still", *c
+    yield 18, "stationary", "Still standing, looks confused", *c
 
 
 def run_demo(service: JourneyService | None = None) -> dict:
@@ -87,6 +76,7 @@ def run_demo(service: JourneyService | None = None) -> dict:
             "score": res.risk.score,
             "level": res.risk.level,
             "reasons": [r.code for r in res.risk.reasons],
+            "reason_details": [f"{r.description} (+{r.points})" for r in res.risk.reasons],
             "checkin_created": res.checkin_created.message if res.checkin_created else None,
             "alert_created": res.alert_created.message if res.alert_created else None,
         })
@@ -107,9 +97,9 @@ def run_demo(service: JourneyService | None = None) -> dict:
 
 if __name__ == "__main__":
     out = run_demo()
-    print(f"{'min':>3} {'score':>5} {'level':<7} {'phase':<20} reasons")
+    print(f"{'min':>3} {'score':>5} {'level':<7} {'phase':<11} reasons")
     for s in out["steps"]:
-        print(f"{s['minute']:>3} {s['score']:>5} {s['level']:<7} {s['phase']:<20} {','.join(s['reasons'])}")
+        print(f"{s['minute']:>3} {s['score']:>5} {s['level']:<7} {s['phase']:<11} {'; '.join(s['reason_details'])}")
         if s["checkin_created"]:
             print(f"      >> CHECK-IN: {s['checkin_created']}")
         if s["alert_created"]:
