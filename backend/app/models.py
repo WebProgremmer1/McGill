@@ -43,8 +43,8 @@ class Place(Coordinates):
 
 
 class SafeZone(Coordinates):
-    name: str = Field(..., min_length=1, max_length=120, examples=["Home neighbourhood"])
-    radius_m: float = Field(..., gt=0, le=50_000, examples=[1000])
+    name: str = Field(..., min_length=1, max_length=120, examples=["Tim Hortons"])
+    radius_m: float = Field(..., gt=0, le=50_000, examples=[75])
 
 
 class TrackPoint(Coordinates):
@@ -109,6 +109,11 @@ class LocationUpdate(BaseModel):
     }
 
 
+class RouteRequest(BaseModel):
+    start: Coordinates
+    destination: Coordinates
+
+
 class CheckInRequest(BaseModel):
     help_requested: bool = Field(False, description="True = the user pressed the help button.")
     response: str | None = Field(None, max_length=300, description="The user's answer to a check-in.")
@@ -126,7 +131,7 @@ class CheckInRequest(BaseModel):
 
 # ---------------------------------------------------------------- risk
 class RiskReason(BaseModel):
-    code: Literal["left_safe_zone", "off_route", "stationary", "repeated_revisits", "late_arrival"]
+    code: Literal["off_route", "stationary", "repeated_revisits", "left_safe_zone", "taking_too_long"]
     points: int
     description: str
 

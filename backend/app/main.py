@@ -15,7 +15,7 @@ from .demo import run_demo
 from .errors import ApiError
 from .models import (
     DISCLAIMER, Alert, CheckIn, CheckInRequest, CheckInResult, Journey,
-    JourneyCreate, LocationResult, LocationUpdate,
+    JourneyCreate, LocationResult, LocationUpdate, Place, RouteRequest,
 )
 from .routes_provider import PREDEFINED_ROUTES, RouteProvider
 from .service import JourneyService
@@ -65,6 +65,22 @@ def create_app(settings: Settings | None = None, route_provider: RouteProvider |
             "route_mode": settings.route_mode,
             "disclaimer": DISCLAIMER,
         }
+
+    @app.get("/api/maps-config", tags=["live map"])
+    def maps_config():
+        """The Google key for the live map page. A Maps JavaScript key always ends up
+        in the browser, so restrict it to http://localhost:8000/* in Google Cloud."""
+        return {"browser_key": settings.google_browser_key,
+                "maps_enabled": bool(settings.google_browser_key)}
+
+    @app.post("/api/expected-route", tags=["live map"])
+    def expected_route(body: RouteRequest):
+        """Look up the walking route between two points (Google, or a straight line)."""
+        start = Place(name="start", latitude=body.start.latitude, longitude=body.start.longitude)
+        dest = Place(name="destination", latitude=body.destination.latitude, longitude=body.destination.longitude)
+        r = service.routes.resolve(start, dest, None, None)
+        return {"route": r.points, "route_source": r.source, "route_warning": r.warning,
+                "distance_m": r.distance_m, "duration_s": r.duration_s}
 
     @app.get("/api/routes/predefined", tags=["system"])
     def predefined_routes():
@@ -123,7 +139,7 @@ def create_app(settings: Settings | None = None, route_provider: RouteProvider |
 
     @app.get("/", include_in_schema=False)
     def root():
-        return RedirectResponse("/viewer/")
+        return RedirectResponse("/viewer/live-map.html")
 
     app.mount("/viewer", StaticFiles(directory=Path(__file__).resolve().parent.parent / "viewer", html=True), name="viewer")
 

@@ -1,89 +1,70 @@
-"""Small GPS maths helpers (no external libraries)."""
+"""GPS maths: turning latitude/longitude into metres.
+
+The idea (see README, "How metres are worked out"):
+  * 1 degree of latitude (north-south) is always about 111,320 m.
+  * 1 degree of longitude (east-west) is shorter the further you are from the
+    equator, so we multiply by cos(latitude). In Montreal that is about 78,000 m.
+  * Once two points are in metres (x = east, y = north) we use Pythagoras.
+
+This "flat map" trick is accurate to well under 1 m over a few kilometres,
+which is plenty for a walk across a city.
+
+Every function here takes points that have .latitude and .longitude
+(Place, Coordinates and TrackPoint all do).
+"""
 from __future__ import annotations
 
 import math
-from typing import Sequence
 
-EARTH_RADIUS_M = 6_371_008.8
-
-
-def haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Great-circle distance between two points, in metres."""
-    p1, p2 = math.radians(lat1), math.radians(lat2)
-    dphi = p2 - p1
-    dlmb = math.radians(lon2 - lon1)
-    a = math.sin(dphi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dlmb / 2) ** 2
-    return 2 * EARTH_RADIUS_M * math.asin(math.sqrt(a))
+METRES_PER_DEGREE = 111_320  # length of 1 degree of latitude
 
 
-def _xy(lat: float, lon: float, ref_lat: float) -> tuple[float, float]:
-    """Project to a flat local grid (metres). Accurate enough for city-scale distances."""
-    x = math.radians(lon) * EARTH_RADIUS_M * math.cos(math.radians(ref_lat))
-    y = math.radians(lat) * EARTH_RADIUS_M
-    return x, y
+def metres_from(origin, p) -> tuple[float, float]:
+    """Where p is compared to origin, in metres: (east, north)."""
+    east = (p.longitude - origin.longitude) * METRES_PER_DEGREE * math.cos(math.radians(origin.latitude))
+    north = (p.latitude - origin.latitude) * METRES_PER_DEGREE
+    return east, north
 
 
-def point_to_segment_m(plat, plon, alat, alon, blat, blon) -> float:
-    px, py = _xy(plat, plon, plat)
-    ax, ay = _xy(alat, alon, plat)
-    bx, by = _xy(blat, blon, plat)
+def distance_m(a, b) -> float:
+    """Straight-line distance between two points, in metres."""
+    east, north = metres_from(a, b)
+    return math.hypot(east, north)  # Pythagoras: sqrt(east^2 + north^2)
+
+
+def distance_to_segment_m(p, a, b) -> float:
+    """Distance from point p to the closest spot on the straight line a -> b."""
+    # Put p at (0, 0) and express a and b in metres around it.
+    ax, ay = metres_from(p, a)
+    bx, by = metres_from(p, b)
     dx, dy = bx - ax, by - ay
-    seg_len2 = dx * dx + dy * dy
-    if seg_len2 == 0:
-        return math.hypot(px - ax, py - ay)
-    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / seg_len2))
-    return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+    length_squared = dx * dx + dy * dy
+    if length_squared == 0:  # a and b are the same point
+        return math.hypot(ax, ay)
+    # t says how far along a -> b the closest spot is (0 = at a, 1 = at b).
+    t = -(ax * dx + ay * dy) / length_squared
+    t = max(0.0, min(1.0, t))  # stay on the segment, not past its ends
+    closest_x, closest_y = ax + t * dx, ay + t * dy
+    return math.hypot(closest_x, closest_y)
 
 
-def distance_to_route_m(lat: float, lon: float, route: Sequence) -> float:
-    """Shortest distance from a point to a polyline (items need .latitude/.longitude)."""
-    if not route:
-        return math.inf
+def distance_to_route_m(p, route) -> float:
+    """How far p is from the route: the closest of all the route's segments."""
     if len(route) == 1:
-        return haversine_m(lat, lon, route[0].latitude, route[0].longitude)
-    return min(
-        point_to_segment_m(
-            lat, lon, a.latitude, a.longitude, b.latitude, b.longitude
-        )
-        for a, b in zip(route, route[1:])
-    )
+        return distance_m(p, route[0])
+    return min(distance_to_segment_m(p, a, b) for a, b in zip(route, route[1:]))
 
 
 def offset_point(lat: float, lon: float, north_m: float, east_m: float) -> tuple[float, float]:
-    """Move a point by metres north/east."""
-    dlat = math.degrees(north_m / EARTH_RADIUS_M)
-    dlon = math.degrees(east_m / (EARTH_RADIUS_M * math.cos(math.radians(lat))))
-    return lat + dlat, lon + dlon
-
-
-def route_length_m(route: Sequence) -> float:
-    return sum(
-        haversine_m(a.latitude, a.longitude, b.latitude, b.longitude)
-        for a, b in zip(route, route[1:])
-    )
-
-
-def interpolate_route(route: Sequence, fraction: float) -> tuple[float, float]:
-    """Point at `fraction` (0..1) of the way along the polyline."""
-    fraction = max(0.0, min(1.0, fraction))
-    total = route_length_m(route)
-    target = total * fraction
-    walked = 0.0
-    for a, b in zip(route, route[1:]):
-        seg = haversine_m(a.latitude, a.longitude, b.latitude, b.longitude)
-        if walked + seg >= target and seg > 0:
-            t = (target - walked) / seg
-            return (
-                a.latitude + (b.latitude - a.latitude) * t,
-                a.longitude + (b.longitude - a.longitude) * t,
-            )
-        walked += seg
-    last = route[-1]
-    return last.latitude, last.longitude
+    """Move a point by some metres north and east (used by the demo and tests)."""
+    new_lat = lat + north_m / METRES_PER_DEGREE
+    new_lon = lon + east_m / (METRES_PER_DEGREE * math.cos(math.radians(lat)))
+    return new_lat, new_lon
 
 
 def decode_polyline(encoded: str) -> list[tuple[float, float]]:
-    """Decode a Google encoded polyline into (lat, lon) pairs."""
+    """Decode the compressed route string Google sends back into (lat, lon) pairs.
+    Format: https://developers.google.com/maps/documentation/utilities/polylinealgorithm"""
     coords: list[tuple[float, float]] = []
     index = lat = lon = 0
     while index < len(encoded):

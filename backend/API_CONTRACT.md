@@ -24,11 +24,13 @@ Score is **recalculated from current conditions on every update** (not accumulat
 
 | Reason code         | Points | Condition |
 |---------------------|--------|-----------|
-| `left_safe_zone`    | +15 | She arrived inside a safe zone (that does not contain the journey start) and is now outside it. Leaving the start/home zone never scores. |
-| `off_route`         | +25 | Latest position > 100 m from the route |
-| `stationary`        | +15 | Within 25 m for > 5 minutes (not counted at the destination) |
-| `repeated_revisits` | +25 | Returned to previously visited places ≥ 3 times (simple turn-arounds don't count) |
-| `late_arrival`      | +20 | > 10 minutes past `expected_arrival` and not within 50 m of destination |
+| `off_route`         | how far (50–150 m: 10, 150–300 m: 25, over 300 m: 40) + how long (2 per minute off route, max 40) | More than 50 m from the route |
+| `stationary`        | 3 per minute after the first 2, max 25 | Stayed within 25 m (not counted at the destination) |
+| `repeated_revisits` | 15 per return, max 30 | Times she came back to her current spot (within 30 m) |
+| `left_safe_zone`    | 15 | Reached a safe zone (not the start/Home zone) and then left it |
+| `taking_too_long`   | 2 per minute over the allowed time, max 30 | Allowed time = 1.5 × (`expected_arrival` − `started_at`). Stops once she reaches the destination |
+
+See the README for the full rules.
 
 ## Errors
 
@@ -105,10 +107,10 @@ Response:
   "journey_id": "jrn_1a2b3c4d", "journey_status": "active",
   "location": { "latitude": 45.506, "longitude": -73.5754, "timestamp": "2026-01-01T09:01:00Z" },
   "risk": {
-    "score": 50, "level": "medium",
+    "score": 48, "level": "medium",
     "reasons": [
-      { "code": "off_route", "points": 25, "description": "372 m away from the expected route (limit 100 m)." },
-      { "code": "repeated_revisits", "points": 25, "description": "Has returned to previously visited locations 3 times." }
+      { "code": "off_route", "points": 33, "description": "Off route (247 m away) for 4 min." },
+      { "code": "repeated_revisits", "points": 15, "description": "Came back to this spot 1 time(s)." }
     ],
     "recommended_action": "contextual_check_in", "help_requested": false,
     "evaluated_at": "2026-01-01T09:13:00Z", "disclaimer": "…"
@@ -125,7 +127,7 @@ Response:
 { "id": "chk_9f8e7d6c", "journey_id": "jrn_…", "created_at": "2026-01-01T09:13:00Z",
   "status": "open", "message": "Hi Margaret, you're on your way to Tim Hortons. …",
   "options": ["I'm okay", "Show me the way", "I need help"],
-  "risk_score": 50, "reason_codes": ["off_route","repeated_revisits"],
+  "risk_score": 48, "reason_codes": ["off_route","repeated_revisits"],
   "response": null, "answered_at": null }
 ```
 `status`: `open` | `answered` | `closed` (journey ended).
@@ -166,9 +168,12 @@ No body. Idempotent.
 ## Extras
 - `GET /api/routes/predefined` → `{ "routes": ["tim_hortons_demo"] }`
 - `POST /api/demo/run` → replays the Tim Hortons scenario instantly through the real risk engine:
-  `{ "journey_id", "summary": {first_medium_at_minute, first_high_at_minute, final_score, …}, "steps": [ {minute, phase, description, latitude, longitude, score, level, reasons[], checkin_created, alert_created} ] }`.
+  `{ "journey_id", "summary": {first_medium_at_minute, first_high_at_minute, final_score, …}, "steps": [ {minute, phase, description, latitude, longitude, score, level, reasons[], reason_details[], checkin_created, alert_created} ] }`.
   The journey, check-in and alert then show up in the normal GET endpoints.
 - `POST /api/demo/reset` → clears all in-memory data.
+- `GET /api/maps-config` → `{ "browser_key": "…" | null, "maps_enabled": true }`, the key the live map page loads Google Maps with.
+- `POST /api/expected-route` with `{ "start": {latitude, longitude}, "destination": {latitude, longitude} }` →
+  `{ "route": [ {latitude, longitude}, … ], "route_source", "route_warning", "distance_m", "duration_s" }`. Looks up a route without creating a journey.
 
 ## Frontend integration examples
 ```js

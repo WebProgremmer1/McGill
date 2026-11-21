@@ -32,8 +32,8 @@ def _checkin_message(j: Journey, risk: RiskAssessment) -> str:
         tail = "It seems you've passed through some of the same places. Would you like some help getting there?"
     elif "stationary" in codes:
         tail = "You've stopped for a while. Is everything alright?"
-    elif "late_arrival" in codes:
-        tail = "The trip is taking longer than expected. Would you like some help?"
+    elif "taking_too_long" in codes:
+        tail = "It's taking a bit longer than usual. Are you okay?"
     else:
         tail = "You've gone a bit farther than usual. Are you okay?"
     return f"Hi {name}, you're on your way to {dest}. {tail}"

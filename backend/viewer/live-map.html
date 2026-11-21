@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A Lark in the Park</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Based on Artem's live map page, cut down to the four rules in app/risk.py. */
+:root{
+  --bg:#f2f5f7; --surface:#fff; --ink:#15212b; --muted:#5b6b78; --line:#d9e1e7; --grid:#e8eef2;
+  --accent:#2f5d86; --zone:#2e8b57;
+  --low:#2e8b57; --low-bg:#e3f3ea; --med:#b7791f; --med-bg:#fbf0dc; --high:#c2412d; --high-bg:#fbe5e1;
+  --crit:#8e1b5a; --crit-bg:#f7e1ee;
+  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --f-body:"Figtree",system-ui,-apple-system,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#0f161c; --surface:#16212a; --ink:#e4ecf2; --muted:#93a4b2; --line:#26343f; --grid:#1c2932;
+  --accent:#7fb2e0; --zone:#5cc28a;
+  --low:#5cc28a; --low-bg:#173326; --med:#e0a84a; --med-bg:#3a2c14; --high:#f0735e; --high-bg:#3f1e19;
+  --crit:#f08bc0; --crit-bg:#3d1a2e; color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body)}
+.wrap{max-width:1280px;margin:0 auto;padding:22px 16px 40px;display:grid;gap:16px}
+h1,h2{font-family:var(--f-display);margin:0}
+h1{font-size:clamp(24px,3.4vw,32px)}
+h2{font-size:16px}
+a{color:var(--accent)}
+.lede{color:var(--muted);margin:4px 0 0;max-width:85ch}
+.eyebrow{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;min-width:0}
+.btn{all:unset;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:5px 12px;font-size:13px;font-weight:600;text-align:center}
+.btn:hover{border-color:var(--accent)} .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn[aria-pressed="true"],.btn.primary{background:var(--accent);color:var(--surface);border-color:var(--accent)}
+.btn.help{color:var(--high);border-color:var(--high)}
+select{font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+
+/* walk it yourself */
+.manual{padding:12px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.manual label{font-size:13px;color:var(--muted);display:flex;gap:6px;align-items:center}
+.manual .hint{flex-basis:100%}
+
+/* log of every GPS point */
+.log{max-height:240px;overflow:auto;border-top:1px solid var(--line)}
+.log table{width:100%;border-collapse:collapse;font-size:12.5px}
+.log th{text-align:left;font-size:11px;color:var(--muted);font-weight:600;position:sticky;top:0;background:var(--surface);padding:5px 4px}
+.log td{padding:3px 4px;border-top:1px solid var(--line);font-family:var(--f-mono);vertical-align:top}
+.log .lvl{padding:1px 6px;font-size:11.5px}
+.log .up{color:var(--high)} .log .down{color:var(--low)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+
+/* planner */
+.planner{padding:14px;display:grid;gap:12px}
+.fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,150px);gap:10px;align-items:end}
+@media(max-width:900px){.fields{grid-template-columns:1fr}}
+.field{display:grid;gap:4px;min-width:0}
+.field label{font-size:12px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:6px}
+.pin{display:inline-block;padding:2px 7px;border-radius:5px;font:700 11px/1.4 var(--f-body);letter-spacing:.06em;color:#fff}
+.pin.a{background:#2f5d86} .pin.b{background:#c2412d}
+.inrow{display:flex;gap:6px}
+.inrow input{flex:1;min-width:0}
+input[type=text]{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+input[type=text]:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.routeinfo{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13.5px}
+.hint{font-size:12.5px;color:var(--muted)}
+.warnbox{background:var(--med-bg);color:var(--med);border-radius:8px;padding:6px 10px;font-size:13px}
+.chip{font-size:12.5px;padding:3px 9px;border-radius:99px;background:var(--low-bg);color:var(--low)}
+.chip.warn{background:var(--med-bg);color:var(--med)}
+
+/* scenarios */
+.picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
+.sc{all:unset;cursor:pointer;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:3px;align-content:start}
+.sc:hover{border-color:var(--accent)} .sc:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sc[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.sc b{font-family:var(--f-display);font-size:14.5px}
+.sc small{color:var(--muted);font-size:12px;line-height:1.35}
+.sc .tag{font-family:var(--f-mono);font-size:10.5px;color:var(--accent)}
+.sc[disabled]{opacity:.45;cursor:not-allowed}
+.bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:10px 14px}
+.bar label{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.status{font-size:13.5px;flex:1;min-width:200px}
+
+/* map + risk */
+.stage{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;align-items:start}
+@media(max-width:900px){.stage{grid-template-columns:1fr}}
+.mapcard{padding:8px;display:grid;gap:6px}
+#map{width:100%;height:min(68vh,600px);min-height:380px;border-radius:8px;background:var(--grid)}
+#map.armed{outline:3px solid var(--accent);outline-offset:-3px}
+.mapmsg{display:grid;place-items:center;height:100%;padding:24px;text-align:center;color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;padding:2px 6px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:16px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.panel{padding:16px;display:grid;gap:14px}
+.scoreline{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.score{font-family:var(--f-display);font-size:58px;line-height:.9;font-weight:700;font-variant-numeric:tabular-nums}
+.score small{font-size:16px;color:var(--muted);font-weight:500}
+.lvl{font-family:var(--f-mono);font-size:12.5px;padding:3px 9px;border-radius:6px;text-transform:uppercase;letter-spacing:.06em}
+.lvl.low{background:var(--low-bg);color:var(--low)} .lvl.medium{background:var(--med-bg);color:var(--med)} .lvl.high{background:var(--high-bg);color:var(--high)}
+.reasons{margin:0;padding:0;list-style:none;display:grid;gap:6px}
+.reasons li{display:grid;grid-template-columns:44px 1fr;gap:8px;font-size:13.5px}
+.reasons .pts{font-family:var(--f-mono);font-weight:500;text-align:right;color:var(--muted)}
+.reasons .none{grid-template-columns:1fr;color:var(--muted)}
+dl.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;margin:0}
+dl.stats dt{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+dl.stats dd{margin:0;font-family:var(--f-mono);font-size:14px}
+.rules{font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+.rules ul{margin:4px 0 0;padding-left:18px}
+
+/* phone + caregiver */
+.bottom{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:16px;align-items:start}
+@media(max-width:900px){.bottom{grid-template-columns:1fr}}
+.phone,.feed{padding:16px;display:grid;gap:10px}
+.screen{border:1px solid var(--line);border-radius:22px;padding:16px;min-height:170px;display:grid;gap:10px;align-content:start;background:var(--bg)}
+.bubble{background:var(--surface);border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:10px 12px;font-size:14px}
+.opts{display:flex;flex-wrap:wrap;gap:6px}
+.opts .btn{font-weight:500;background:var(--surface)}
+.opts .btn.help{color:var(--high);border-color:var(--high)}
+.empty{color:var(--muted);font-size:13px}
+#events{list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:420px;overflow:auto}
+#events li{border:1px solid var(--line);border-radius:10px;padding:9px 12px;display:grid;gap:4px;font-size:13.5px}
+.evtype{font-family:var(--f-mono);font-size:11.5px;padding:2px 7px;border-radius:5px;justify-self:start}
+.evtype.alert{background:var(--high-bg);color:var(--high)} .evtype.crit{background:var(--crit-bg);color:var(--crit)}
+.evtype.chk{background:var(--med-bg);color:var(--med)} .evtype.ok{background:var(--low-bg);color:var(--low)}
+
+/* map markers */
+/* big text labels with a pointer underneath, so HOME and DESTINATION are obvious */
+.mk{position:relative;margin-bottom:9px;padding:7px 12px;border-radius:8px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);
+  font:700 15px/1 var(--f-body);letter-spacing:.08em;color:#fff;white-space:nowrap}
+.mk::after{content:"";position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);border:7px solid transparent;border-bottom:0}
+.mk.a{background:#2f5d86} .mk.a::after{border-top-color:#2f5d86}
+.mk.b{background:#c2412d} .mk.b::after{border-top-color:#c2412d}
+.me{width:18px;height:18px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45);transform:translateY(50%)}
+.pac-container{z-index:10000;font-family:var(--f-body)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Live demo · real backend · real Montreal streets · simulated walks</div>
+    <h1>A Lark in the Park</h1>
+    <p class="lede">Pick a start and a destination. The backend asks Google for a real walking route.
+      Each scenario then sends pretend GPS points along those streets to the real API (one point per 30 seconds of walk time),
+      and the score comes from the five rules in <span class="mono">app/risk.py</span>.</p>
+  </header>
+
+  <section class="card planner" aria-label="Plan the walk">
+    <div class="fields">
+      <div class="field">
+        <label for="in-start"><span class="pin a">HOME</span>Where the walk starts</label>
+        <div class="inrow">
+          <input type="text" id="in-start" placeholder="Search a place in Montreal" autocomplete="off">
+          <button class="btn" type="button" data-arm="start">Pick on map</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="in-dest"><span class="pin b">DESTINATION</span>Where she is going</label>
+        <div class="inrow">
+          <input type="text" id="in-dest" placeholder="Search a place in Montreal" autocomplete="off">
+          <button class="btn" type="button" data-arm="dest">Pick on map</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="in-name">Walker</label>
+        <input type="text" id="in-name" value="Margaret" autocomplete="off">
+      </div>
+    </div>
+    <div class="routeinfo" id="routeinfo"><span class="hint">Choose a start and a destination to get the walking route.</span></div>
+  </section>
+
+  <section class="stage">
+    <div class="card mapcard">
+      <div id="map"><div class="mapmsg">Loading Google Maps…</div></div>
+      <div class="legend">
+        <span><i style="background:var(--accent);height:4px"></i>Planned route</span>
+        <span><i style="background:rgba(47,93,134,.45)"></i>On route (50 m)</span>
+        <span><i style="background:rgba(47,93,134,.25)"></i>A little off (150 m)</span>
+        <span><i style="background:rgba(47,93,134,.1)"></i>Off (300 m), beyond is far off</span>
+        <span><i style="background:var(--zone);opacity:.4"></i>Safe zones (75 m)</span>
+        <span><i style="background:var(--low)"></i><i style="background:var(--med)"></i><i style="background:var(--high)"></i>Walk, coloured by risk</span>
+      </div>
+    </div>
+    <aside class="card panel" aria-live="polite">
+      <div>
+        <div class="eyebrow">Risk right now</div>
+        <div class="scoreline"><div class="score" id="score">0<small>/100</small></div><span class="lvl low" id="lvl">low</span></div>
+      </div>
+      <ul class="reasons" id="reasons"><li class="none">No walk running.</li></ul>
+      <dl class="stats">
+        <div><dt>Walk time (expected)</dt><dd id="s-time">–</dd></div>
+        <div><dt>From route</dt><dd id="s-route">–</dd></div>
+      </dl>
+      <div class="log">
+        <table>
+          <thead><tr><th>Min</th><th>Off route</th><th>Score</th><th>Change</th><th>Points from</th></tr></thead>
+          <tbody id="logbody"></tbody>
+        </table>
+      </div>
+      <div class="rules">
+        <b>The rules</b> (score worked out again on every GPS point)
+        <ul>
+          <li>Off route: 10 / 25 / 40 for 50 / 150 / 300+ m away, plus 2 per minute off (max 40)</li>
+          <li>Standing still: 3 per minute after 2 free minutes (max 25)</li>
+          <li>Loops: 15 per return to the same spot (max 30)</li>
+          <li>Left the destination's safe zone: 15</li>
+          <li>Taking too long: free until 1.5× the expected walk time, then 2 per minute (max 30)</li>
+        </ul>
+        30+ = check-in on the phone · 60+ = caregiver alert
+      </div>
+    </aside>
+  </section>
+
+  <section class="card manual" aria-label="Walk it yourself">
+    <h2>Walk it yourself</h2>
+    <button class="btn primary" id="m-start" type="button" disabled>Start my own walk</button>
+    <button class="btn" id="m-stay" type="button" disabled>Stay here</button>
+    <button class="btn help" id="m-help" type="button" disabled>I need help</button>
+    <button class="btn" id="m-finish" type="button" disabled>Finish walk</button>
+    <span class="hint">She starts at HOME. Click the map to move her; each click is 1 minute of walking.
+      Try: walk a parallel street, go far the wrong way, circle back to the same corner, or press "Stay here" a few times.</span>
+  </section>
+
+  <div class="eyebrow">Or play a scenario</div>
+  <nav class="picker" id="picker" aria-label="Scenarios"></nav>
+
+  <div class="card bar">
+    <div class="status" id="status">Plan a route, then pick a scenario.</div>
+    <label>Delay per point <input type="range" id="speed" min="80" max="900" value="350"></label>
+    <button class="btn" id="stop" type="button">Stop</button>
+  </div>
+
+  <section class="bottom">
+    <div class="card phone">
+      <h2 id="phone-title">Margaret's phone</h2>
+      <div class="screen" id="phone"><div class="empty">Check-ins appear here when the risk is medium.</div></div>
+    </div>
+    <div class="card feed">
+      <h2>Caregiver feed</h2>
+      <ul id="events"><li class="empty" id="noevents">Check-ins and alerts appear here.</li></ul>
+    </div>
+  </section>
+</div>
+
+<script>
+const API = "/api";
+const $ = id => document.getElementById(id);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const MTL_BOUNDS = { south: 45.40, west: -73.98, north: 45.71, east: -73.47 };
+// The walk shown when the page opens (change it with the search boxes, "Pick on map" or by dragging the labels).
+const DEFAULT_HOME = { name: "Home (McGill area)", lat: 45.5048, lng: -73.5772 };
+const DEFAULT_DEST = { name: "Tim Hortons", lat: 45.5088, lng: -73.5697 };
+const SAFE_ZONE_M = 75;
+const MINUTES_PER_CLICK = 1;
+
+/* ---------------- state ---------------- */
+let map = null, Adv = null;
+const place = { start: null, dest: null };   // {name, lat, lng}
+let ROUTE = null;                             // {points: [[lat, lng]], source, warning, distance_m, duration_s}
+let armed = null;                             // "start" | "dest" while picking on the map
+const mk = {};                                // map objects
+let walkLayers = [];
+const walker = () => $("in-name").value.trim() || "Margaret";
+const destName = () => place.dest?.name || "the destination";
+
+/* ---------------- metres (same idea as app/geo.py) ----------------
+   x = metres east, y = metres north, measured from the start of the route. */
+const M_PER_DEG = 111320;
+let O = [45.5, -73.57], RXY = [], CUM = [], LEN = 0, DXY = [0, 0];
+const cosO = () => Math.cos(O[0] * Math.PI / 180);
+const toXY = ([lat, lng]) => [(lng - O[1]) * M_PER_DEG * cosO(), (lat - O[0]) * M_PER_DEG];
+const toLatLng = ([x, y]) => [O[0] + y / M_PER_DEG, O[1] + x / (M_PER_DEG * cosO())];
+const add = (p, d, m) => [p[0] + d[0] * m, p[1] + d[1] * m];
+const unit = v => { const n = Math.hypot(v[0], v[1]) || 1; return [v[0] / n, v[1] / n]; };
+const rot = (v, deg) => { const r = deg * Math.PI / 180, c = Math.cos(r), s = Math.sin(r); return [v[0] * c - v[1] * s, v[0] * s + v[1] * c]; };
+function setGeometry() {
+  O = ROUTE.points[0];
+  RXY = ROUTE.points.map(toXY);
+  CUM = [0];
+  for (let i = 1; i < RXY.length; i++) CUM.push(CUM[i - 1] + Math.hypot(RXY[i][0] - RXY[i - 1][0], RXY[i][1] - RXY[i - 1][1]));
+  LEN = CUM[CUM.length - 1];
+  DXY = toXY([place.dest.lat, place.dest.lng]);
+}
+function segIndex(s) { for (let i = 1; i < RXY.length; i++) if (s <= CUM[i]) return i; return RXY.length - 1; }
+function pointAt(s) {            // the spot s metres along the route
+  s = Math.max(0, Math.min(s, LEN));
+  const i = segIndex(s), L = CUM[i] - CUM[i - 1] || 1, t = (s - CUM[i - 1]) / L;
+  return [RXY[i - 1][0] + (RXY[i][0] - RXY[i - 1][0]) * t, RXY[i - 1][1] + (RXY[i][1] - RXY[i - 1][1]) * t];
+}
+const dirAt = s => { const i = segIndex(Math.max(0, Math.min(s, LEN))); return unit([RXY[i][0] - RXY[i - 1][0], RXY[i][1] - RXY[i - 1][1]]); };
+function segDist(p, a, b) {
+  const dx = b[0] - a[0], dy = b[1] - a[1], L2 = dx * dx + dy * dy;
+  const t = L2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / L2)) : 0;
+  return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
+}
+const distToRoute = p => { let m = Infinity; for (let i = 1; i < RXY.length; i++) m = Math.min(m, segDist(p, RXY[i - 1], RXY[i])); return m; };
+const toDest = p => unit([DXY[0] - p[0], DXY[1] - p[1]]);
+/* Of a few directions (angles from "straight at the destination"), pick the one
+   that takes her furthest from the route, so scenarios work on any street layout. */
+function bestDir(p, angles, metres) {
+  const base = toDest(p); let best = null, far = -1;
+  for (const a of angles) { const d = rot(base, a), f = distToRoute(add(p, d, metres)); if (f > far) { far = f; best = d; } }
+  return best;
+}
+
+/* ---------------- scenario paths ---------------- */
+const STEP = 39; // metres walked in 30 s at 1.3 m/s
+function pathBuilder() {
+  const pts = [], last = () => pts[pts.length - 1];
+  const b = {
+    pts, s: null, dir: null,
+    alongRoute(toM) {                      // walk on the route up to toM metres
+      let s = b.s === null ? 0 : b.s + STEP;
+      for (; s <= Math.min(toM, LEN); s += STEP) { pts.push(pointAt(s)); b.s = s; }
+      if (toM >= LEN && b.s < LEN) { pts.push(pointAt(LEN)); b.s = LEN; }
+      return b;
+    },
+    beside(offset, toM) {                  // walk parallel to the route, `offset` metres to one side
+      const side = distToRoute(add(pointAt(LEN / 2), rot(dirAt(LEN / 2), 90), offset)) >= distToRoute(add(pointAt(LEN / 2), rot(dirAt(LEN / 2), -90), offset)) ? 90 : -90;
+      const sideways = rot(dirAt(b.s), side);
+      for (let m = STEP; m < offset; m += STEP) pts.push(add(pointAt(b.s), sideways, m));
+      for (let s = b.s; s <= Math.min(toM, LEN); s += STEP) { pts.push(add(pointAt(s), rot(dirAt(s), side), offset)); b.s = s; }
+      return b;
+    },
+    go(dir, metres) {                      // dir: unit vector, or "dest" to head straight for the destination
+      for (let m = STEP; m <= metres + 1; m += STEP) {
+        const p = last();
+        if (dir === "dest" && Math.hypot(DXY[0] - p[0], DXY[1] - p[1]) < STEP) { pts.push([...DXY]); return b; }
+        pts.push(add(p, dir === "dest" ? toDest(p) : dir, STEP));
+      }
+      return b;
+    },
+    goBest(angles, metres) { b.dir = bestDir(last(), angles, metres); return b.go(b.dir, metres); },
+    square(side, laps) {                   // walk round a block `laps` times
+      const o = last(), d = b.dir || toDest(o);
+      const q = [rot(d, 90), rot(d, -90)].sort((u, v) => distToRoute(add(add(o, d, side), v, side)) - distToRoute(add(add(o, d, side), u, side)))[0];
+      const corners = [add(o, d, side), add(add(o, d, side), q, side), add(o, q, side), o];
+      for (let l = 0; l < laps; l++) for (const c of corners) {
+        const p = last(), n = Math.max(1, Math.round(Math.hypot(c[0] - p[0], c[1] - p[1]) / STEP));
+        for (let k = 1; k <= n; k++) pts.push([p[0] + (c[0] - p[0]) * k / n, p[1] + (c[1] - p[1]) * k / n]);
+      }
+      return b;
+    },
+    stay(n) { for (let i = 0; i < n; i++) pts.push([...last()]); return b; },  // n x 30 s standing still
+  };
+  return b;
+}
+const early = (m, f) => Math.min(m, f * LEN);
+const FAR = () => LEN * 3 + 2000;
+const SCENARIOS = [
+  { key: "normal", tag: "low", title: "Normal walk",
+    blurb: () => `Follows the route to ${destName()}. Stays low the whole way.`,
+    build: () => pathBuilder().alongRoute(Infinity).pts },
+  { key: "little", tag: "a little off, for a long time", title: "Parallel street",
+    blurb: () => "Walks about 100 m beside the route. Only 10 points at first, but +2 every minute.",
+    build: () => pathBuilder().alongRoute(early(150, .15)).beside(100, LEN * .9).go("dest", FAR()).pts },
+  { key: "far", tag: "far off route", title: "Walks the wrong way",
+    blurb: () => `Turns away from ${destName()} and keeps going. Far off = 40 points straight away.`,
+    build: () => pathBuilder().alongRoute(early(240, .25)).goBest([-130, 130, -150, 150, 180], 600).pts },
+  { key: "loop", tag: "loops", title: "Circles a block",
+    blurb: () => "Goes round the same block twice, then finds the way. The score drops once she is back.",
+    build: () => pathBuilder().alongRoute(early(300, .3)).goBest([-90, 90], 160).square(80, 2).go("dest", FAR()).pts },
+  { key: "zone", tag: "left safe zone", title: "Arrives, then wanders off",
+    blurb: () => `Reaches ${destName()}, then walks back out of its safe zone.`,
+    build: () => { const b = pathBuilder().alongRoute(Infinity).stay(2); return b.go(dirAt(LEN), 300).pts; } },
+  { key: "lost", tag: "high alert", title: "Lost and stopped",
+    blurb: () => "Leaves the route, circles, then stands still. Escalates to a caregiver alert.",
+    build: () => pathBuilder().alongRoute(early(260, .3)).goBest([-120, 120, -140, 140], 250).square(70, 2).stay(16).pts },
+];
+
+/* ---------------- Google map ---------------- */
+function loadGoogle(key) {
+  return new Promise((resolve, reject) => {
+    window.__gmReady = resolve;
+    window.gm_authFailure = () => reject(new Error("Google rejected the key. It needs the Maps JavaScript API and Places API enabled."));
+    const s = document.createElement("script");
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&language=en&region=CA&libraries=places,marker&loading=async&callback=__gmReady`;
+    s.async = true; s.onerror = () => reject(new Error("Could not load Google Maps (offline?)."));
+    document.head.appendChild(s);
+  });
+}
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const lvlColor = l => css(l === "high" ? "--high" : l === "medium" ? "--med" : "--low");
+const ll = ([lat, lng]) => ({ lat, lng });
+const pinName = (lat, lng) => `Pin ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+function pinEl(cls, text) { const d = document.createElement("div"); d.className = "mk " + cls; d.textContent = text; return d; }
+
+async function initMap() {
+  const { Map } = await google.maps.importLibrary("maps");
+  ({ AdvancedMarkerElement: Adv } = await google.maps.importLibrary("marker"));
+  await google.maps.importLibrary("places");
+  $("map").innerHTML = "";
+  map = new Map($("map"), {
+    center: { lat: 45.5019, lng: -73.5674 }, zoom: 14,
+    // Raster rendering: vector maps cap polyline width, which would hide the distance bands.
+    mapId: "DEMO_MAP_ID", renderingType: "RASTER", colorScheme: "FOLLOW_SYSTEM",
+    mapTypeControl: false, streetViewControl: false, clickableIcons: false,
+  });
+  // Distance bands around the route: 300 m, 150 m and 50 m either side (the off-route rule).
+  mk.bands = [[300, .08], [150, .12], [50, .25]].map(([m, op]) => ({ m,
+    line: new google.maps.Polyline({ map, strokeColor: "#2f5d86", strokeOpacity: op, strokeWeight: 1, zIndex: 1, clickable: false }) }));
+  mk.route = new google.maps.Polyline({ map, strokeColor: "#2f5d86", strokeOpacity: .95, strokeWeight: 5, zIndex: 2, clickable: false });
+  mk.zones = ["start", "dest"].map(() => new google.maps.Circle({ map, radius: SAFE_ZONE_M, strokeColor: "#2e8b57", strokeWeight: 2, fillColor: "#2e8b57", fillOpacity: .15, clickable: false, visible: false }));
+  mk.start = new Adv({ content: pinEl("a", "HOME"), gmpDraggable: true, title: "Home (drag to move)", zIndex: 50 });
+  mk.dest = new Adv({ content: pinEl("b", "DESTINATION"), gmpDraggable: true, title: "Destination (drag to move)", zIndex: 50 });
+  for (const which of ["start", "dest"]) mk[which].addListener("dragend", () => {
+    const p = mk[which].position, lat = typeof p.lat === "function" ? p.lat() : p.lat, lng = typeof p.lng === "function" ? p.lng() : p.lng;
+    setPlace(which, { name: pinName(lat, lng), lat, lng });
+  });
+  map.addListener("zoom_changed", sizeBands);
+  map.addListener("click", e => {
+    const lat = e.latLng.lat(), lng = e.latLng.lng();
+    if (armed) { setPlace(armed, { name: pinName(lat, lng), lat, lng }); arm(null); }
+    else if (manual) moveTo([lat, lng], MINUTES_PER_CLICK);
+  });
+  for (const which of ["start", "dest"]) {
+    const input = $(which === "start" ? "in-start" : "in-dest");
+    const ac = new google.maps.places.Autocomplete(input, {
+      bounds: MTL_BOUNDS, strictBounds: true, componentRestrictions: { country: "ca" }, fields: ["name", "geometry", "formatted_address"],
+    });
+    ac.addListener("place_changed", () => {
+      const p = ac.getPlace();
+      if (!p.geometry?.location) { $("routeinfo").innerHTML = `<span class="warnbox">Pick a suggestion from the list.</span>`; return; }
+      setPlace(which, { name: p.name || p.formatted_address, lat: p.geometry.location.lat(), lng: p.geometry.location.lng() });
+    });
+    input.addEventListener("keydown", e => { if (e.key === "Enter") e.preventDefault(); });
+  }
+}
+function sizeBands() {           // a band of m metres either side = 2m metres wide, converted to pixels
+  if (!map || !ROUTE) return;
+  const metresPerPixel = 156543.03392 * cosO() / Math.pow(2, map.getZoom());
+  mk.bands.forEach(b => b.line.setOptions({ strokeWeight: Math.min(1200, Math.max(2, 2 * b.m / metresPerPixel)) }));
+}
+function arm(which) {
+  armed = which && armed !== which ? which : null;
+  document.querySelectorAll("[data-arm]").forEach(b => b.setAttribute("aria-pressed", b.dataset.arm === armed));
+  $("map").classList.toggle("armed", !!armed);
+  if (armed) $("routeinfo").innerHTML = `<span class="hint">Click the map to set <b>${armed === "start" ? "HOME" : "DESTINATION"}</b>.</span>`;
+}
+
+/* ---------------- planning ---------------- */
+let planSeq = 0;
+function setPlace(which, p) {
+  place[which] = p;
+  $(which === "start" ? "in-start" : "in-dest").value = p.name;
+  if (map) { mk[which].position = ll([p.lat, p.lng]); mk[which].map = map; }
+  stopWalk(); clearWalk();
+  if (place.start && place.dest) plan();
+  else if (map) map.panTo(ll([p.lat, p.lng]));
+  refreshCards();
+}
+async function plan() {
+  const seq = ++planSeq;
+  ROUTE = null; refreshCards();
+  $("routeinfo").innerHTML = `<span class="hint">Asking for a walking route…</span>`;
+  try {
+    const r = await post("/expected-route", {
+      start: { latitude: place.start.lat, longitude: place.start.lng },
+      destination: { latitude: place.dest.lat, longitude: place.dest.lng },
+    });
+    if (seq !== planSeq) return;
+    ROUTE = { points: r.route.map(p => [p.latitude, p.longitude]), source: r.route_source, warning: r.route_warning, distance_m: r.distance_m, duration_s: r.duration_s };
+    setGeometry(); drawRoute(); refreshCards();
+  } catch (e) {
+    if (seq === planSeq) $("routeinfo").innerHTML = `<span class="warnbox">Route lookup failed: ${esc(e.message || JSON.stringify(e))}</span>`;
+  }
+}
+function drawRoute() {
+  const path = ROUTE.points.map(ll);
+  mk.route.setPath(path); mk.bands.forEach(b => b.line.setPath(path));
+  [place.start, place.dest].forEach((p, i) => { mk.zones[i].setCenter(ll([p.lat, p.lng])); mk.zones[i].setVisible(true); });
+  const bounds = new google.maps.LatLngBounds(); path.forEach(p => bounds.extend(p));
+  map.fitBounds(bounds, 90);
+  google.maps.event.addListenerOnce(map, "idle", sizeBands); sizeBands();
+  const km = (ROUTE.distance_m ?? LEN) / 1000, min = Math.round((ROUTE.duration_s ?? LEN / 1.3) / 60);
+  const src = ROUTE.source === "google_routes" ? `<span class="chip">Google walking route</span>` : `<span class="chip warn">Straight-line fallback</span>`;
+  const notes = [];
+  if (ROUTE.warning) notes.push(esc(ROUTE.warning));
+  if (LEN < 450) notes.push("Very short walk: the off-route scenarios work best with places at least 500 m apart.");
+  $("routeinfo").innerHTML = `${src}<span class="mono">${km.toFixed(2)} km · ~${min} min walk</span><span class="hint">${esc(place.start.name)} → ${esc(place.dest.name)}</span>` +
+    notes.map(n => `<span class="warnbox">${n}</span>`).join("");
+}
+function refreshCards() {
+  document.querySelectorAll(".sc").forEach(b => { b.disabled = !ROUTE; b.querySelector("small").textContent = SCENARIOS.find(s => s.key === b.dataset.key).blurb(); });
+  $("m-start").disabled = !ROUTE;
+  $("phone-title").textContent = `${walker()}'s phone`;
+}
+
+/* ---------------- drawing the walk + risk panel ---------------- */
+function clearWalk() {
+  walkLayers.forEach(o => o.setMap(null)); walkLayers = [];
+  if (mk.me) mk.me.map = null;
+  $("score").innerHTML = `0<small>/100</small>`; $("lvl").className = "lvl low"; $("lvl").textContent = "low";
+  $("reasons").innerHTML = `<li class="none">No walk running.</li>`;
+  $("s-time").textContent = "–"; $("s-route").textContent = "–";
+  $("logbody").innerHTML = "";
+}
+const SHORT = { off_route: "off route", stationary: "still", repeated_revisits: "loops", left_safe_zone: "safe zone", taking_too_long: "too long" };
+function logRow(minute, metresOff, risk, change) {
+  const tr = document.createElement("tr");
+  const cls = change > 0 ? "up" : change < 0 ? "down" : "";
+  tr.innerHTML = `<td>${minute.toFixed(1)}</td><td>${Math.round(metresOff)} m</td>` +
+    `<td><span class="lvl ${risk.level}">${risk.score}</span></td><td class="${cls}">${change > 0 ? "+" : ""}${change}</td>` +
+    `<td>${risk.reasons.map(r => `${SHORT[r.code]} ${r.points}`).join(", ") || "–"}</td>`;
+  $("logbody").prepend(tr);
+}
+function drawStep(prevLL, curLL, level) {
+  if (prevLL) walkLayers.push(new google.maps.Polyline({ map, path: [ll(prevLL), ll(curLL)], strokeColor: lvlColor(level), strokeWeight: 6, zIndex: 10, clickable: false }));
+  if (!mk.me) { const d = document.createElement("div"); d.className = "me"; mk.me = new Adv({ content: d, zIndex: 60, title: "Current position" }); }
+  mk.me.content.style.background = lvlColor(level);
+  mk.me.position = ll(curLL); mk.me.map = map;
+  const bounds = map.getBounds();
+  if (bounds && !bounds.contains(ll(curLL))) map.panTo(ll(curLL));
+}
+function showRisk(risk, minute, metresOff) {
+  $("score").innerHTML = `${risk.score}<small>/100</small>`;
+  $("lvl").className = "lvl " + risk.level; $("lvl").textContent = risk.level;
+  $("reasons").innerHTML = risk.reasons.length
+    ? risk.reasons.map(r => `<li><span class="pts">+${r.points}</span><span>${esc(r.description)}</span></li>`).join("")
+    : `<li class="none">No concerns.</li>`;
+  $("s-time").textContent = `${minute.toFixed(1)} of ~${Math.round(expectedMinutes())} min`;
+  $("s-route").textContent = `${Math.round(metresOff)} m`;
+}
+
+/* ---------------- phone + caregiver feed ---------------- */
+function showCheckin(c, jid) {
+  $("phone").innerHTML = `<div class="bubble">${esc(c.message)}</div><div class="opts">${c.options.map(o =>
+    `<button class="btn ${o === "I need help" ? "help" : ""}" type="button">${esc(o)}</button>`).join("")}</div>`;
+  $("phone").querySelectorAll("button").forEach(b => b.onclick = async () => {
+    const answer = b.textContent;
+    const res = await post(`/journeys/${jid}/checkin`, answer === "I need help" ? { help_requested: true } : { response: answer }).catch(() => null);
+    $("phone").innerHTML = `<div class="bubble">You answered: <b>${esc(answer)}</b></div>`;
+    if (res?.alert && !res.deduplicated) addEvent("crit", "Help button pressed", res.alert.message, res.alert.id);
+    else addEvent("ok", `${walker()} answered`, `"${esc(answer)}"`);
+  });
+}
+function addEvent(cls, title, body, alertId) {
+  $("noevents")?.remove();
+  const li = document.createElement("li");
+  li.innerHTML = `<span class="evtype ${cls}">${esc(title)}</span><div>${cls === "ok" ? body : esc(body)}</div>` +
+    (alertId ? `<div><button class="btn" type="button">Acknowledge</button></div>` : "");
+  li.querySelector("button")?.addEventListener("click", async e => {
+    e.target.disabled = true; await post(`/alerts/${alertId}/acknowledge`).catch(() => {}); e.target.textContent = "Acknowledged";
+  });
+  $("events").prepend(li);
+}
+
+/* ---------------- running a scenario ---------------- */
+async function post(path, body) {
+  const r = await fetch(API + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json(); if (!r.ok) throw j.error || j; return j;
+}
+let running = null;   // the scenario being played, so "Stop" can cancel it
+let manual = false;   // true while "Walk it yourself" is on
+let walk = null;      // the journey on the map: {id, t0, minute, last: [lat, lng], score}
+let busy = false;     // one click at a time, so GPS timestamps stay in order
+
+function stopWalk() {
+  if (running) running.stop = true;
+  running = null; manual = false; showManual();
+}
+function showManual() {
+  $("m-start").textContent = manual ? "Restart my walk" : "Start my own walk";
+  ["m-stay", "m-help", "m-finish"].forEach(id => $(id).disabled = !manual);
+  if (map) map.setOptions({ draggableCursor: manual ? "crosshair" : null });
+}
+
+// How long this walk should take: Google's estimate, or the route length at 1.3 m/s.
+const expectedMinutes = () => (ROUTE.duration_s ?? LEN / 1.3) / 60;
+
+// Create a new journey on the backend for the current route.
+async function newWalk() {
+  clearWalk();
+  $("phone").innerHTML = `<div class="empty">Check-ins appear here when the risk is medium.</div>`;
+  const t0 = new Date(Math.floor(Date.now() / 1000) * 1000);
+  const iso = m => new Date(t0.getTime() + m * 60000).toISOString();
+  const zone = p => ({ name: p.name, latitude: p.lat, longitude: p.lng, radius_m: SAFE_ZONE_M });
+  const journey = await post("/journeys", {
+    user_name: walker(),
+    start: { name: place.start.name, latitude: place.start.lat, longitude: place.start.lng },
+    destination: { name: place.dest.name, latitude: place.dest.lat, longitude: place.dest.lng },
+    expected_arrival: iso(expectedMinutes()), started_at: iso(0),
+    route: ROUTE.points.map(([latitude, longitude]) => ({ latitude, longitude })),
+    safe_zones: [zone(place.start), zone(place.dest)],
+  });
+  walk = { id: journey.id, t0, minute: 0, last: null, score: 0 };
+}
+
+// Send one GPS point to the backend and show what the rules said about it.
+async function step(latlng, minute) {
+  const timestamp = new Date(walk.t0.getTime() + minute * 60000).toISOString();
+  const res = await post(`/journeys/${walk.id}/location`, { latitude: latlng[0], longitude: latlng[1], timestamp });
+  const metresOff = distToRoute(toXY(latlng));
+  drawStep(walk.last, latlng, res.risk.level);
+  showRisk(res.risk, minute, metresOff);
+  logRow(minute, metresOff, res.risk, res.risk.score - walk.score);
+  walk.last = latlng; walk.minute = minute; walk.score = res.risk.score;
+  if (res.checkin_created) { showCheckin(res.checkin_created, walk.id); addEvent("chk", "Check-in sent", res.checkin_created.message); }
+  if (res.alert_created) addEvent("alert", `Risk alert · ${res.alert_created.risk_score}/100`, res.alert_created.message, res.alert_created.id);
+}
+
+// ----- scenarios: a pre-built path, one point per 30 s
+async function run(sc) {
+  if (!ROUTE) return;
+  stopWalk(); arm(null);
+  const me = running = { stop: false };
+  document.querySelectorAll(".sc").forEach(b => b.setAttribute("aria-pressed", b.dataset.key === sc.key));
+  await newWalk();
+  const pts = sc.build();
+  for (let i = 0; i < pts.length; i++) {
+    if (me.stop) return;
+    $("status").innerHTML = `<b>${sc.title}</b> · GPS point ${i + 1} of ${pts.length}`;
+    await step(toLatLng(pts[i]), i * 0.5);
+    await sleep(+$("speed").value);
+  }
+  if (me.stop) return;
+  await post(`/journeys/${walk.id}/complete`).catch(() => {});
+  $("status").innerHTML = `<b>${sc.title}</b> finished. Pick another scenario, walk it yourself, or change the places.`;
+  running = null;
+}
+
+// ----- walk it yourself: every map click is one GPS point
+async function startManual() {
+  if (!ROUTE) return;
+  stopWalk(); arm(null);
+  document.querySelectorAll(".sc").forEach(b => b.setAttribute("aria-pressed", false));
+  await newWalk();
+  manual = true; showManual();
+  await step([place.start.lat, place.start.lng], 0);   // she starts at A
+  $("status").innerHTML = `<b>Your walk</b> · click the map to move ${esc(walker())}.`;
+}
+async function moveTo(latlng, minutes) {
+  if (!manual || busy) return;
+  busy = true;
+  try {
+    await step(latlng, walk.minute + minutes);
+    $("status").innerHTML = `<b>Your walk</b> · minute ${walk.minute.toFixed(1)} · click the map to keep going.`;
+  } catch (e) {
+    $("status").textContent = "Error: " + (e.message || JSON.stringify(e));
+  } finally { busy = false; }
+}
+
+/* ---------------- start-up ---------------- */
+SCENARIOS.forEach(sc => {
+  const b = document.createElement("button"); b.className = "sc"; b.type = "button"; b.dataset.key = sc.key; b.disabled = true;
+  b.innerHTML = `<span class="tag">${sc.tag}</span><b>${sc.title}</b><small></small>`;
+  b.onclick = () => run(sc).catch(e => { $("status").textContent = "Error: " + (e.message || JSON.stringify(e)); running = null; });
+  $("picker").appendChild(b);
+});
+document.querySelectorAll("[data-arm]").forEach(b => b.onclick = () => arm(b.dataset.arm));
+$("in-name").addEventListener("input", refreshCards);
+$("stop").onclick = () => { stopWalk(); $("status").textContent = "Stopped."; };
+$("m-start").onclick = () => startManual().catch(e => { $("status").textContent = "Error: " + (e.message || JSON.stringify(e)); });
+$("m-stay").onclick = () => walk?.last && moveTo(walk.last, MINUTES_PER_CLICK);
+$("m-help").onclick = async () => {
+  const r = await post(`/journeys/${walk.id}/checkin`, { help_requested: true }).catch(() => null);
+  if (r?.alert) addEvent("crit", r.deduplicated ? "Help button pressed (already sent)" : "Help button pressed", r.alert.message, r.deduplicated ? null : r.alert.id);
+};
+$("m-finish").onclick = async () => {
+  await post(`/journeys/${walk.id}/complete`).catch(() => {});
+  manual = false; showManual();
+  $("status").innerHTML = `<b>Your walk</b> finished at minute ${walk.minute.toFixed(1)}.`;
+};
+
+(async () => {
+  try {
+    const cfg = await fetch(API + "/maps-config").then(r => r.json());
+    if (!cfg.maps_enabled) throw new Error("No Google key on the server. Put GOOGLE_MAPS_API_KEY in backend/.env and restart.");
+    await loadGoogle(cfg.browser_key);
+    await initMap();
+    setPlace("start", DEFAULT_HOME);
+    setPlace("dest", DEFAULT_DEST);
+  } catch (e) {
+    $("map").innerHTML = `<div class="mapmsg"><div><b>Map unavailable.</b><br>${esc(e.message)}</div></div>`;
+  }
+  refreshCards();
+})();
+</script>
+</body>
+</html>
