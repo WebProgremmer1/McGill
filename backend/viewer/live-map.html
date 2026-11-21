@@ -89,6 +89,8 @@ input[type=text]:focus{outline:2px solid var(--accent);outline-offset:-1px}
 .mapcard{padding:8px;display:grid;gap:6px}
 #map{width:100%;height:min(68vh,600px);min-height:380px;border-radius:8px;background:var(--grid)}
 #map.armed{outline:3px solid var(--accent);outline-offset:-3px}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px;padding:2px 6px;font-size:12px;color:var(--muted)}
+.legend span:not(:last-child)::after{content:"·";margin-left:14px}
 .mapmsg{display:grid;place-items:center;height:100%;padding:24px;text-align:center;color:var(--muted)}
 .panel{padding:16px;display:grid;gap:14px}
 .scoreline{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
@@ -166,6 +168,13 @@ dl.stats dd{margin:0;font-family:var(--f-mono);font-size:14px}
   <section class="stage">
     <div class="card mapcard">
       <div id="map"><div class="mapmsg">Loading Google Maps…</div></div>
+      <div class="legend">
+        <span>On route (50 m)</span>
+        <span>A little off (150 m)</span>
+        <span>Off (300 m), beyond is far off</span>
+        <span>Safe zones (75 m)</span>
+        <span>Walk, coloured by risk</span>
+      </div>
     </div>
     <aside class="card panel" aria-live="polite">
       <div>
