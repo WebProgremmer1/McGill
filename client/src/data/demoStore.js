@@ -1,17 +1,16 @@
 // The only data boundary: replace this adapter with FastAPI reads, writes,
 // and a subscription/polling transport when the backend is available.
 export const demoData = {
-  person: { firstName: 'Eleanor', name: 'Eleanor Bennett' },
   day: 'Friday',
   date: 'November 20',
   activities: [
     { time: '9:00 AM', title: 'Breakfast & a cup of tea', detail: 'A slow start at home', icon: 'cup', done: true },
     { time: '10:30 AM', title: 'Walk to the grocery store', detail: 'Bread, apples, and milk', icon: 'walk' },
     { time: '12:30 PM', title: 'Lunch at home', detail: 'Your favourite soup is in the fridge', icon: 'sun' },
-    { time: '3:00 PM', title: 'Catch up with Maya', detail: 'A little time together', icon: 'phone' },
+    { time: '3:00 PM', title: 'Catch up with family', detail: 'A little time together', icon: 'phone' },
   ],
   directions: ['Continue along Maple Street toward Oak Avenue.', 'At Oak Avenue, turn right at the flower shop.', 'Maple Market is the next shop on your left, at 120 Maple Street.'],
-  responses: { continue: 'Eleanor chose to keep going.', directions: 'Eleanor viewed directions.', contact: 'Eleanor requested a call from Maya.' },
+  responses: { continue: 'They chose to keep going.', directions: 'They viewed directions.', contact: 'They asked for help.' },
 }
 
 const STORAGE_KEY = 'whats-next-demo-v1'

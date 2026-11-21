@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:onboarding": "vite --mode fictional-auth",
     "build": "vite build",
     "lint": "oxlint",
     "test": "node --experimental-vm-modules --test tests/*.test.js",

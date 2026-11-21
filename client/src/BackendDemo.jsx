@@ -1,0 +1,204 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { CaregiverDashboard, GetHelp, TodayScreen } from './CareScreens.jsx'
+import { firstName } from './data/contacts.js'
+import { createJourneyApi } from './data/journeyApi.js'
+import { destinationOptions, helpOnlyRequest } from './data/places.js'
+import Shell from './Shell.jsx'
+
+export default function BackendDemo({ family, circle = null, account = null, onAccessLost, shell }) {
+  const api = useMemo(() => createJourneyApi(circle), [circle])
+  const [data, setData] = useState(null)
+  const [readError, setReadError] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [revision, setRevision] = useState(0)
+  const [continuedJourney, setContinuedJourney] = useState(null)
+  const remindersHeading = useRef(null)
+  const journeyHeading = useRef(null)
+  const journeyDetails = useRef(null)
+  const focusAfterUpdate = useRef(null)
+  const reminderRegion = useRef(null)
+  const lastReminder = useRef(undefined)
+  const eventRegion = useRef(null)
+  const lastEvent = useRef(undefined)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let timer
+    async function poll() {
+      try {
+        const snapshot = await api.readJourney(AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]))
+        if (!controller.signal.aborted) {
+          setData(snapshot)
+          setReadError('')
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          if (circle && [401, 403].includes(error.status)) {
+            setData(null)
+            onAccessLost?.(error.status)
+            return
+          }
+          setReadError(`Could not refresh the journey. ${error.message}`)
+        }
+      } finally {
+        if (!controller.signal.aborted) timer = setTimeout(poll, 2000)
+      }
+    }
+    poll()
+    return () => {
+      controller.abort()
+      clearTimeout(timer)
+    }
+  }, [api, circle, onAccessLost, revision])
+
+  const { journey = null, checkIn = null, help = null, helpJourney = null } = data ?? {}
+  const canReadReminders = api.can('read_reminders')
+  const reminder = canReadReminders ? data?.reminder ?? null : null
+  const reminderKey = canReadReminders ? data?.reminderId ?? null : null
+  const sender = canReadReminders && circle ? data?.reminderSender ?? null : null
+  const senderName = firstName(sender)
+  const linkedPerson = circle?.care_recipient ?? null
+  const viewerIsRecipient = Boolean(account && linkedPerson?.id === account.id)
+  const recipient = viewerIsRecipient ? null : linkedPerson
+  const caregiver = circle?.caregivers?.find(person => person.id !== account?.id) ?? null
+  const caregiverName = firstName(caregiver)
+  const viewerName = firstName(account)
+
+  // An action can remove the control that had focus, so keyboard users continue nearby.
+  useEffect(() => {
+    const target = focusAfterUpdate.current
+    if (!target || !data) return
+    const ready = (target === 'details' && journey) || (target === 'journey' && !journey) || (target === 'reminders' && !checkIn)
+    if (!ready) return
+    focusAfterUpdate.current = null
+    if (document.activeElement !== document.body) return
+    const element = { details: journeyDetails, journey: journeyHeading, reminders: remindersHeading }[target].current
+    element?.focus()
+  }, [checkIn, data, journey])
+
+  // Announce changed reminders once. Whatever is loaded with the page is not new.
+  const remindersLoaded = canReadReminders && Boolean(data)
+  useEffect(() => {
+    if (family || !remindersLoaded) return
+    if (lastReminder.current !== undefined && reminderKey && lastReminder.current !== reminderKey && reminderRegion.current) {
+      reminderRegion.current.textContent = senderName ? `New reminder from ${senderName}: ${reminder}` : `New reminder: ${reminder}`
+    }
+    lastReminder.current = reminderKey
+  }, [family, reminder, reminderKey, remindersLoaded, senderName])
+
+  function handleAccessError(error) {
+    if (!circle || ![401, 403].includes(error.status)) return false
+    setData(null)
+    onAccessLost?.(error.status)
+    return true
+  }
+
+  async function perform(action, failureMessage) {
+    if (busy) return
+    setBusy(true)
+    setActionError('')
+    try {
+      await action()
+    } catch (error) {
+      focusAfterUpdate.current = null
+      if (!handleAccessError(error)) setActionError(failureMessage ?? error.message)
+    } finally {
+      setBusy(false)
+      setRevision(value => value + 1)
+    }
+  }
+
+  const destination = journey?.destination.name
+  const event = family ? help : checkIn
+  const helpTitle = recipient ? `${firstName(recipient)} asked for help.` : 'A help request is waiting.'
+  const announcement = family ? helpTitle : `Still heading to ${destination}?`
+  const controlsUnavailable = busy || Boolean(readError)
+  const options = data ? destinationOptions(data.journeys, data.routes, account?.name) : []
+  const helpLabel = caregiverName ? `Ask ${caregiverName} for help` : 'Get help'
+  const eventId = event?.id ?? null
+
+  // Announce each new check-in or help request once. Items already there on load are not new.
+  useEffect(() => {
+    if (!data || !eventRegion.current) return
+    if (!eventId) eventRegion.current.textContent = ''
+    else if (lastEvent.current !== undefined && lastEvent.current !== eventId) eventRegion.current.textContent = announcement
+    lastEvent.current = eventId
+  }, [announcement, data, eventId])
+
+  const requestHelp = () => {
+    if (help) return
+    perform(async () => {
+      if (journey) {
+        await api.requestHelp(journey.id, checkIn?.id)
+        return
+      }
+      const record = await api.createJourney(helpOnlyRequest(account?.name))
+      try {
+        await api.requestHelp(record.id)
+      } finally {
+        await api.closeJourney(record.id, 'cancel').catch(() => {})
+      }
+    }, 'Your help request didn’t send. Try again.')
+  }
+
+  const keepGoing = () => perform(async () => {
+    await api.answerCheckIn(journey.id, checkIn.id)
+    focusAfterUpdate.current = 'reminders'
+    setContinuedJourney(journey.id)
+  })
+
+  const startJourney = option => perform(async () => {
+    const created = await api.createJourney(option.build())
+    const others = data.journeys.filter(item => item.status === 'active' && item.id !== created.id)
+    await Promise.all(others.map(item => api.closeJourney(item.id, 'cancel').catch(() => {})))
+    focusAfterUpdate.current = 'details'
+  }, 'That journey didn’t start. Try again.')
+
+  const endJourney = action => perform(async () => {
+    const active = data.journeys.filter(item => item.status === 'active')
+    await api.closeJourney(journey.id, action)
+    await Promise.all(active.filter(item => item.id !== journey.id).map(item => api.closeJourney(item.id, 'cancel').catch(() => {})))
+    focusAfterUpdate.current = 'journey'
+  }, 'That didn’t work. Try again.')
+
+  async function sendReminder(text) {
+    try {
+      await api.sendReminder(text)
+    } catch (error) {
+      handleAccessError(error)
+      throw error
+    }
+    setRevision(value => value + 1)
+  }
+
+  const helpConfirmation = caregiverName
+    ? `Your help request is on ${caregiverName}’s dashboard.`
+    : circle ? 'No caregiver is linked yet, so no one can see this request.' : 'Your help request is on the care dashboard.'
+  const confirmation = help
+    ? helpConfirmation
+    : journey && continuedJourney === journey.id && !checkIn ? `Okay. Enjoy your walk to ${destination}.` : ''
+  const canHelp = api.can('request_help')
+  const heading = family ? 'Care dashboard' : viewerName ? `Hi, ${viewerName}` : 'Today'
+
+  return (
+    <Shell {...shell} family={family} heading={heading}
+      action={!family && canHelp ? <GetHelp label={helpLabel} onClick={requestHelp} busy={busy} /> : null}>
+      <div ref={eventRegion} className="sr-only" role="status" aria-live="polite" aria-atomic="true" />
+      <div ref={reminderRegion} className="sr-only" role="status" aria-live="polite" aria-atomic="true" />
+      {(readError || actionError) && <p className="error-banner" role="alert">{actionError || readError}</p>}
+      {family ? (
+        <CaregiverDashboard loaded={Boolean(data)} help={help} helpTitle={helpTitle} helpJourney={helpJourney} journey={journey}
+          reminder={reminder} sender={sender} recipient={recipient} openDemo={!circle} showCareTasks={!circle || Boolean(recipient)}
+          can={api.can} onSendReminder={sendReminder} />
+      ) : (
+        <TodayScreen checkIn={checkIn} journey={journey} help={help} reminder={reminder} sender={sender}
+          viewerIsRecipient={viewerIsRecipient} caregiver={caregiver} helpLabel={helpLabel} confirmation={confirmation}
+          options={options} busy={busy} controlsUnavailable={controlsUnavailable}
+          canTravel={api.can('start_journey')} canHelp={canHelp}
+          onKeepGoing={keepGoing} onAskForHelp={requestHelp} onStart={startJourney} onEnd={endJourney}
+          remindersRef={remindersHeading} journeyRef={journeyHeading} detailsRef={journeyDetails} />
+      )}
+    </Shell>
+  )
+}
