@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.db import MemoryStore
-from app.google_auth import OAUTH_STATE_COOKIE, SCOPES, SESSION_COOKIE, GoogleAuth, TokenResult
+from app.google_auth import OAUTH_STATE_COOKIE, SCOPES, SESSION_COOKIE, GoogleAuth, TokenResult, _failure_code
 from app.main import _RedactOAuthCallback, create_app
 from tests.conftest import far_off_route, iso, make_journey, send
 
@@ -240,6 +240,48 @@ def test_open_demo_walk_without_session_sends_no_escalation_email(tmp_path):
     assert send(outsider, journey["id"], *far_off_route(0, -400), 0)["checkin_created"]
     client.app.state.escalation.tick()
     assert fake.sent == [] and client.get("/api/escalations").json() == []
+
+
+def signed_id_token(issued_in_s):
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+    from google.auth import crypt, jwt
+
+    key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    private = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                serialization.NoEncryption())
+    public = key.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+    now = int(datetime.now(timezone.utc).timestamp())
+    token = jwt.encode(crypt.RSASigner.from_string(private, "test-key"), {
+        "iss": "https://accounts.google.com", "aud": CLIENT_JSON["web"]["client_id"], "sub": "1",
+        "email": ACCOUNT, "email_verified": True, "iat": now + issued_in_s, "exp": now + 3600})
+    return token.decode(), public
+
+
+@pytest.mark.parametrize("issued_in_s,accepted", [(3, True), (30, False)])
+def test_id_token_allows_only_a_small_clock_difference(tmp_path, monkeypatch, issued_in_s, accepted):
+    from types import SimpleNamespace
+
+    from google.auth.exceptions import InvalidValue
+    from google.oauth2 import id_token
+
+    client, *_ = build(tmp_path)
+    google = client.app.state.google
+    token, public = signed_id_token(issued_in_s)
+    monkeypatch.setattr(id_token, "_fetch_certs", lambda request, url: {"test-key": public})
+    creds = SimpleNamespace(refresh_token="refresh", id_token=token, granted_scopes=SCOPES, scopes=SCOPES)
+    monkeypatch.setattr(google, "_flow", lambda: SimpleNamespace(code_verifier=None, credentials=creds,
+                                                                 fetch_token=lambda code: None))
+    if accepted:
+        assert google._google_exchange("code", "verifier").email == ACCOUNT
+    else:
+        with pytest.raises(InvalidValue) as failure:
+            google._google_exchange("code", "verifier")
+        assert _failure_code(failure.value) == "id_token_used_too_early"
+
+
+def test_exchange_failure_code_hides_provider_text():
+    assert _failure_code(RuntimeError("private token text")) == "unclassified"
 
 
 # ---------------------------------------------------------------- one help email

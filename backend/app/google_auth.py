@@ -18,6 +18,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import secrets
 import threading
 import time
@@ -40,6 +41,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/calendar.readonly",
 ]
 STATE_TTL_S = 600
+ID_TOKEN_CLOCK_SKEW_S = 10  # a PC clock a few seconds behind Google must not fail sign-in
 SESSION_TTL_S = 8 * 60 * 60
 SESSION_COOKIE = "whats_next_session"
 OAUTH_STATE_COOKIE = "whats_next_oauth_state"
@@ -54,6 +56,19 @@ class TokenResult:
 
 
 Exchange = Callable[[str, str], TokenResult]  # (code, code_verifier) -> TokenResult
+
+
+def _failure_code(error: Exception) -> str:
+    """A safe label for logs. Never returns the provider's message, which can contain token data."""
+    code = getattr(error, "error", None)
+    if isinstance(code, str) and re.fullmatch(r"[a-z_]{1,40}", code):
+        return code
+    text = str(error).lower()
+    for phrase, label in (("used too early", "id_token_used_too_early"), ("token expired", "id_token_expired"),
+                          ("audience", "id_token_wrong_audience"), ("signature", "id_token_bad_signature")):
+        if phrase in text:
+            return label
+    return "unclassified"
 
 
 class TokenCipher:
@@ -171,7 +186,7 @@ class GoogleAuth:
         except ApiError:
             raise
         except Exception as e:  # noqa: BLE001
-            log.warning("Google token exchange failed: %s", type(e).__name__)
+            log.warning("Google token exchange failed: %s code=%s", type(e).__name__, _failure_code(e))
             raise ApiError(502, "google_token_exchange_failed", "Google rejected the sign-in. Try again.") from None
         allowed = (self.settings.google_allowed_email or "").strip().lower()
         if not allowed or result.email.strip().lower() != allowed:
@@ -198,7 +213,8 @@ class GoogleAuth:
             raise ApiError(400, "no_refresh_token",
                            "Google did not return a refresh token. Remove the app at "
                            "https://myaccount.google.com/permissions and connect again.")
-        info = id_token.verify_oauth2_token(creds.id_token, Request(), self._cfg["client_id"])
+        info = id_token.verify_oauth2_token(creds.id_token, Request(), self._cfg["client_id"],
+                                            clock_skew_in_seconds=ID_TOKEN_CLOCK_SKEW_S)
         if not info.get("email_verified"):
             raise ApiError(403, "google_email_not_verified", "This Google account's email isn't verified.")
         scopes = list(getattr(creds, "granted_scopes", None) or creds.scopes or [])
