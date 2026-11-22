@@ -59,7 +59,7 @@ select{font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--line);
 .field{display:grid;gap:4px;min-width:0}
 .field label{font-size:12px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:6px}
 .pin{display:inline-block;padding:2px 7px;border-radius:5px;font:700 11px/1.4 var(--f-body);letter-spacing:.06em;color:#fff}
-.pin.a{background:#2f5d86} .pin.b{background:#c2412d}
+.pin.a{background:#6E5683} .pin.b{background:#A8435A}
 .inrow{display:flex;gap:6px}
 .inrow input{flex:1;min-width:0}
 input[type=text]{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
@@ -145,15 +145,18 @@ html.embed,html.embed body{height:100%;margin:0;background:transparent}
 .embed .stage{display:block;height:100%}
 .embed .mapcard{display:block;height:100%;padding:0;border:0;border-radius:0}
 .embed #map{height:100%;min-height:0;border-radius:0}
+/* Embedded in a dashboard: a light apricot wash warms the map without hiding streets. */
+.embed .mapcard{position:relative}
+.embed .mapcard::after{content:"";position:absolute;inset:0;pointer-events:none;background:#FFD9A0;mix-blend-mode:multiply;opacity:.16}
 
 /* map markers */
 /* big text labels with a pointer underneath, so HOME and DESTINATION are obvious */
-.mk{position:relative;margin-bottom:9px;padding:7px 12px;border-radius:8px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);
+.mk{position:relative;margin-bottom:9px;padding:8px 14px;border-radius:999px;border:2px solid #FFF6E8;box-shadow:0 4px 14px rgba(59,43,69,.3);
   font:700 15px/1 var(--f-body);letter-spacing:.08em;color:#fff;white-space:nowrap}
 .mk::after{content:"";position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);border:7px solid transparent;border-bottom:0}
-.mk.a{background:#2f5d86} .mk.a::after{border-top-color:#2f5d86}
-.mk.b{background:#c2412d} .mk.b::after{border-top-color:#c2412d}
-.me{width:18px;height:18px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45);transform:translateY(50%)}
+.mk.a{background:#6E5683} .mk.a::after{border-top-color:#6E5683}
+.mk.b{background:#A8435A} .mk.b::after{border-top-color:#A8435A}
+.me{width:18px;height:18px;border-radius:50%;border:3px solid #FFF6E8;box-shadow:0 0 0 7px rgba(240,176,79,.35),0 2px 6px rgba(59,43,69,.35);transform:translateY(50%)}
 .pac-container{z-index:10000;font-family:var(--f-body)}
 </style>
 </head>
@@ -422,14 +425,14 @@ async function initMap() {
   map = new Map($("map"), {
     center: { lat: 45.5019, lng: -73.5674 }, zoom: 14,
     // Raster rendering: vector maps cap polyline width, which would hide the distance bands.
-    mapId: "DEMO_MAP_ID", renderingType: "RASTER", colorScheme: "FOLLOW_SYSTEM",
+    mapId: "DEMO_MAP_ID", renderingType: "RASTER", colorScheme: EMBED ? "LIGHT" : "FOLLOW_SYSTEM",
     mapTypeControl: false, streetViewControl: false, clickableIcons: false,
   });
   // Distance bands around the route: 300 m, 150 m and 50 m either side (the off-route rule).
   mk.bands = [[300, .08], [150, .12], [50, .25]].map(([m, op]) => ({ m,
-    line: new google.maps.Polyline({ map, strokeColor: "#2f5d86", strokeOpacity: op, strokeWeight: 1, zIndex: 1, clickable: false }) }));
-  mk.route = new google.maps.Polyline({ map, strokeColor: "#2f5d86", strokeOpacity: .95, strokeWeight: 5, zIndex: 2, clickable: false });
-  mk.zones = ["start", "dest"].map(() => new google.maps.Circle({ map, radius: SAFE_ZONE_M, strokeColor: "#2e8b57", strokeWeight: 2, fillColor: "#2e8b57", fillOpacity: .15, clickable: false, visible: false }));
+    line: new google.maps.Polyline({ map, strokeColor: "#6E5683", strokeOpacity: op, strokeWeight: 1, zIndex: 1, clickable: false }) }));
+  mk.route = new google.maps.Polyline({ map, strokeColor: "#6E5683", strokeOpacity: .9, strokeWeight: 5, zIndex: 2, clickable: false });
+  mk.zones = ["start", "dest"].map(() => new google.maps.Circle({ map, radius: SAFE_ZONE_M, strokeColor: "#6B7F6A", strokeWeight: 2, fillColor: "#6B7F6A", fillOpacity: .12, clickable: false, visible: false }));
   mk.start = new Adv({ content: pinEl("a", "HOME"), gmpDraggable: !ATTACH, title: ATTACH ? "Start" : "Home (drag to move)", zIndex: 50 });
   mk.dest = new Adv({ content: pinEl("b", "DESTINATION"), gmpDraggable: !ATTACH, title: ATTACH ? "Destination" : "Destination (drag to move)", zIndex: 50 });
   for (const which of ["start", "dest"]) mk[which].addListener("dragend", () => {

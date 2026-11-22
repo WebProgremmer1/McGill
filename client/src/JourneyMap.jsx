@@ -6,16 +6,18 @@ import { liveMapUrl, readMapsConfig, viewerUrl } from './data/journeyApi.js'
 const drawInViewer = `(text) => {
   const journey = JSON.parse(text);
   reset();
-  (journey.safe_zones || []).forEach(z => layers.push(L.circle([z.latitude, z.longitude], { radius: z.radius_m, color: "#2e9e4f", weight: 2, fillColor: "#2e9e4f", fillOpacity: 0.07, dashArray: "6" }).addTo(map)));
+  (journey.safe_zones || []).forEach(z => layers.push(L.circle([z.latitude, z.longitude], { radius: z.radius_m, color: "#6B7F6A", weight: 2, fillColor: "#6B7F6A", fillOpacity: 0.1, dashArray: "4 8", lineCap: "round" }).addTo(map)));
   const points = journey.route.map(p => [p.latitude, p.longitude]);
   const start = [journey.start.latitude, journey.start.longitude];
   const end = [journey.destination.latitude, journey.destination.longitude];
-  layers.push(L.polyline(points, { color: "#1a73e8", weight: 5, opacity: 0.7 }).addTo(map));
-  layers.push(L.circleMarker(start, { radius: 9, color: "#fff", weight: 3, fillColor: "#1a73e8", fillOpacity: 1 }).addTo(map).bindTooltip(journey.start.name, { permanent: true, direction: "top" }));
-  layers.push(L.marker(end, { keyboard: false }).addTo(map).bindTooltip(journey.destination.name, { permanent: true, direction: "top", offset: [-15, -28] }));
+  layers.push(L.polyline(points, { color: "#FFF6E8", weight: 11, opacity: 0.9, lineCap: "round", lineJoin: "round" }).addTo(map));
+  layers.push(L.polyline(points, { color: "#6E5683", weight: 5, opacity: 0.9, lineCap: "round", lineJoin: "round" }).addTo(map));
+  layers.push(L.circleMarker(start, { radius: 9, color: "#FFF6E8", weight: 3, fillColor: "#6E5683", fillOpacity: 1 }).addTo(map).bindTooltip(journey.start.name, { permanent: true, direction: "top" }));
+  layers.push(L.circleMarker(end, { radius: 11, color: "#FFF6E8", weight: 3, fillColor: "#A8435A", fillOpacity: 1 }).addTo(map).bindTooltip(journey.destination.name, { permanent: true, direction: "top", offset: [0, -10] }));
   if (journey.latest) {
     const point = [journey.latest.latitude, journey.latest.longitude];
-    layers.push(L.circleMarker(point, { radius: 9, color: "#000", weight: 2, fillColor: "#8a2f1d", fillOpacity: 1 }).addTo(map).bindTooltip("Last known location"));
+    layers.push(L.circleMarker(point, { radius: 16, stroke: false, fillColor: "#F0B04F", fillOpacity: 0.35 }).addTo(map));
+    layers.push(L.circleMarker(point, { radius: 8, color: "#FFF6E8", weight: 3, fillColor: "#3B2B45", fillOpacity: 1 }).addTo(map).bindTooltip("Last known location"));
     points.push(point);
   }
   map.invalidateSize();

@@ -1,10 +1,21 @@
-:root { --secondary-text: #435849; font-family: 'Segoe UI', Arial, sans-serif; color: #263b35; background: #f8faf8; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; font-size: 100%; }
+:root {
+  /* Golden Hour theme. Text pairings meet WCAG AA:
+     ink on cream 12.1:1, dusk on cream 7.4:1, white on rose 5.8:1, rose on white 5.8:1. */
+  --gh-cream: #FFF6E8; --gh-sand: #FDE9C4; --gh-apricot: #FFD9A0;
+  --gh-ink: #3B2B45; --gh-dusk: #5B4A6E;
+  --gh-rose: #A8435A; --gh-rose-deep: #8E3549;
+  --gh-marigold: #F0B04F; --gh-pumpkin: #E08A3C;
+  --gh-violet: #8F6D97; --gh-plum: #6E5683;
+  --gh-sage: #6B7F6A; --gh-peri: #7B8FD1;
+  --gh-line: #EDD3AA; --gh-focus: #3B2B45;
+}
+:root { --secondary-text: var(--gh-dusk); font-family: 'Segoe UI', Arial, sans-serif; color: var(--gh-ink); background: var(--gh-cream); font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; font-size: 100%; }
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; }
 button, a { -webkit-tap-highlight-color: transparent; touch-action: manipulation; min-width: 44px; min-height: 44px; }
 button { font: inherit; cursor: pointer; }
 button:disabled { cursor: default; opacity: .65; }
 a { color: inherit; }
-button:focus-visible, a:focus-visible { outline: 3px solid #854510; outline-offset: 5px; }
+button:focus-visible, a:focus-visible { outline: 3px solid var(--gh-focus); outline-offset: 5px; }
 h1, h2, h3, p { margin: 0; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
