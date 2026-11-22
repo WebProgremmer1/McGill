@@ -73,13 +73,20 @@ def _hash(token: str) -> str:
     return hash_token(token or "")
 
 
-def start_ticker(engine: EscalationEngine, every_s: int) -> threading.Event:
-    """Background thread that advances escalations. Set the returned event to stop it."""
+def start_ticker(jobs, every_s: int) -> threading.Event:
+    """Background thread that runs each job's tick() (escalation steps, calendar emails)
+    every `every_s` seconds. Set the returned event to stop it."""
+    import logging
     stop = threading.Event()
+    log = logging.getLogger(__name__)
 
     def loop():
         while not stop.wait(every_s):
-            engine.tick()
+            for job in jobs:
+                try:
+                    job.tick()
+                except Exception:  # noqa: BLE001 - one failing job must not stop the others
+                    log.exception("background %s failed", type(job).__name__)
 
     threading.Thread(target=loop, name="escalation-ticker", daemon=True).start()
     return stop

@@ -38,6 +38,8 @@ class Settings:
     # Visit reminders (Google Calendar): shown this long before a visit until this long after it starts.
     visit_reminder_lead_min: int = 20
     visit_reminder_grace_min: int = 30
+    # Email Margaret about every timed calendar event, VISIT_REMINDER_LEAD_MIN before it starts.
+    calendar_emails: bool = True
 
     @property
     def google_enabled(self) -> bool:
@@ -73,6 +75,7 @@ class Settings:
             escalation_tick_s=_int("ESCALATION_TICK_S", 15),
             visit_reminder_lead_min=_int("VISIT_REMINDER_LEAD_MIN", 20),
             visit_reminder_grace_min=_int("VISIT_REMINDER_GRACE_MIN", 30),
+            calendar_emails=(os.getenv("CALENDAR_EMAILS") or "on").strip().lower() not in ("off", "0", "false", "no"),
         )
 
 

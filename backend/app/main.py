@@ -17,6 +17,7 @@ from .config import Settings
 from .db import Store, create_store
 from .demo import run_demo
 from .errors import ApiError
+from .event_emails import EventEmails
 from .escalation import EscalationEngine
 from .escalation_api import build_router as build_escalation_router, start_ticker
 from .google_auth import GoogleAuth
@@ -33,17 +34,21 @@ from .service import JourneyService
 def create_app(settings: Settings | None = None, route_provider: RouteProvider | None = None,
                store: Store | None = None, google: GoogleAuth | None = None,
                escalation: EscalationEngine | None = None,
-               reminders: VisitReminders | None = None) -> FastAPI:
+               reminders: VisitReminders | None = None,
+               event_emails: EventEmails | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     store = store or create_store(settings)
     google = google or GoogleAuth(settings, store)
-    engine = escalation or EscalationEngine(store, GmailMailer(google), settings)
+    mailer = GmailMailer(google)
+    engine = escalation or EscalationEngine(store, mailer, settings)
     service = JourneyService(route_provider or RouteProvider(settings), engine)
     reminders = reminders or VisitReminders(store, settings, google=google)
+    event_emails = event_emails or EventEmails(store, mailer, reminders, settings)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
-        stop = start_ticker(engine, settings.escalation_tick_s)  # 3-min / 5-min email steps
+        # 3-min / 5-min escalation steps, and calendar event emails 20 min before each event
+        stop = start_ticker([engine, event_emails], settings.escalation_tick_s)
         yield
         stop.set()
 
@@ -173,6 +178,11 @@ def create_app(settings: Settings | None = None, route_provider: RouteProvider |
     def visit_reminders():
         """Visits from Google Calendar in the next 24 h. `show_now` = put it on the phone."""
         return reminders.list()
+
+    @app.post("/api/reminders/email-now", tags=["reminders"])
+    def email_calendar_events_now():
+        """Send any calendar event emails that are due now (the background timer also does this)."""
+        return {"sent": event_emails.tick()}
 
     @app.get("/", include_in_schema=False)
     def root():

@@ -142,3 +142,19 @@ def test_invited_visitor_shows_up_as_a_reminder(live):
     assert mine, (f"No event in the next 24 h has {visitor} as a guest. Create one in Google "
                   "Calendar (with a start time, not all-day) and invite that address.")
     print(f"\nReminder: {mine[0]['read_aloud']} (shows on the phone: {mine[0]['show_now']})")
+
+
+def test_calendar_event_emails_for_the_next_24_hours(live):
+    """Emails the connected account about every timed event in the next 24 h (lead = 24 h).
+    Create an event with a start time to see one arrive; with none, nothing is sent."""
+    from app.event_emails import EventEmails
+
+    settings, store, google, me, _ = live
+    wide = Settings(**{**settings.__dict__, "visit_reminder_lead_min": 24 * 60, "calendar_emails": True})
+    rem = VisitReminders(store, wide, google=google)
+    emails = EventEmails(store, GmailMailer(google), rem, wide)
+    sent = emails.tick()
+    calendar_notes = [n for n in store.notifications.values() if n["kind"].startswith("calendar_event:")]
+    assert all(n["error"] is None for n in calendar_notes), [n["error"] for n in calendar_notes]
+    assert emails.tick() == 0                                 # never twice
+    print(f"\n{sent} calendar event email(s) sent to {me}")

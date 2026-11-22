@@ -91,3 +91,15 @@ def test_escalation_roundtrip(live):
         assert [n["recipient"] for n in store.list_notifications(esc["id"])] == ["anna@example.com"]
     finally:
         store.db.table("escalations").delete().eq("id", esc["id"]).execute()   # cascades to notifications
+
+
+def test_calendar_email_sent_only_once(live):
+    """Calendar emails have no escalation (NULL), which the unique key can't catch."""
+    store, key = live
+    row = {"escalation_id": None, "journey_id": "calendar", "recipient": f"{key}@example.com",
+           "kind": f"calendar_event:{key}:2026-11-21T20:30:00+00:00"}
+    note = store.claim_notification(row)
+    try:
+        assert note and store.claim_notification(row) is None
+    finally:
+        store.db.table("notifications_sent").delete().eq("id", note["id"]).execute()

@@ -46,3 +46,16 @@ when they arrive and why, with a **Read aloud** button.
   the reason, **Read aloud** (browser speech, no new dependency) and **Got it** (hides that visit on
   this browser). The page polls every 60 s. No automatic speech (browsers block it without a click).
 - Tests use a fake calendar fetch and a fake clock; no live Google in the test suite.
+
+## Addition: calendar event emails (requested by the user, 2026-11-21)
+
+Every timed event in the calendar (not only visits) also sends **one email to Margaret's own
+Gmail**, 20 min before it starts (`VISIT_REMINDER_LEAD_MIN`): what, when, who (trusted contacts
+with their relationship first, other guests by Google name or email; Margaret and declined guests
+left out), where, and the description. Recipient chosen by the user ("go" on Margaret herself).
+
+Claude's calls: once per event and start time (a moved event is emailed again); all-day,
+cancelled and already-started events skipped; a failed send is logged, not retried; logged in
+`notifications_sent` with no escalation (the code checks for repeats, since the unique key
+ignores NULLs); `CALENDAR_EMAILS=off` turns it off; `POST /api/reminders/email-now` runs it on demand;
+the existing background timer runs it every `ESCALATION_TICK_S`. Code: `app/event_emails.py`.

@@ -332,6 +332,13 @@ class SupabaseStore:
 
     def claim_notification(self, row: Row) -> Row | None:
         """Insert the row before sending; None if this email was already sent (unique key)."""
+        if row.get("escalation_id") is None:
+            # Postgres treats NULLs as different, so the unique key can't catch repeats of
+            # emails that belong to no escalation (calendar reminders): check first.
+            found = (self.db.table("notifications_sent").select("id").is_("escalation_id", "null")
+                     .eq("kind", row["kind"]).eq("recipient", row["recipient"]).limit(1).execute())
+            if found.data:
+                return None
         try:
             res = self.db.table("notifications_sent").insert(row).execute()
         except Exception as e:  # noqa: BLE001

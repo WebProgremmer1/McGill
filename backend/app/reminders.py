@@ -38,6 +38,23 @@ def _plain(text: str | None) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def local_start(e: dict, cal_tz: str | None) -> datetime | None:
+    """An event's start time in the calendar's own time zone (None for all-day events)."""
+    start = (e.get("start") or {}).get("dateTime")
+    if not start:
+        return None
+    starts = datetime.fromisoformat(start.replace("Z", "+00:00"))
+    tz_name = (e.get("start") or {}).get("timeZone") or cal_tz
+    try:
+        return starts.astimezone(ZoneInfo(tz_name)) if tz_name else starts
+    except Exception:  # noqa: BLE001 - unknown zone name: keep Google's own offset
+        return starts
+
+
+def clock_text(t: datetime) -> str:
+    return t.strftime("%I:%M %p").lstrip("0")
+
+
 def _first(name: str) -> str:
     return name.split()[0] if name.strip() else name
 
@@ -72,6 +89,10 @@ class VisitReminders:
                                 timeMax=time_max.isoformat(), singleEvents=True,
                                 orderBy="startTime", maxResults=100).execute()
         return res.get("items", []), res.get("timeZone")
+
+    def events(self, now: datetime):
+        """(events, calendar time zone) around `now`, from Google at most once a minute."""
+        return self._events(now)
 
     def _events(self, now: datetime):
         with self._lock:
@@ -120,12 +141,8 @@ class VisitReminders:
             return None
         visitors.sort(key=lambda c: c["priority"])
 
-        starts = datetime.fromisoformat(start.replace("Z", "+00:00"))
-        tz_name = (e.get("start") or {}).get("timeZone") or cal_tz
-        try:
-            local = starts.astimezone(ZoneInfo(tz_name)) if tz_name else starts
-        except Exception:  # noqa: BLE001 - unknown zone name: keep Google's own offset
-            local = starts
+        local = local_start(e, cal_tz)
+        starts = local.astimezone(timezone.utc)
         lead = timedelta(minutes=self.settings.visit_reminder_lead_min)
         grace = timedelta(minutes=self.settings.visit_reminder_grace_min)
         if now > starts + grace:
@@ -136,7 +153,7 @@ class VisitReminders:
         reason = " — ".join(p for p in (title, details) if p)
         if len(reason) > REASON_MAX:
             reason = reason[:REASON_MAX - 1].rstrip() + "…"
-        clock = local.strftime("%I:%M %p").lstrip("0")
+        clock = clock_text(local)
 
         main, others = visitors[0], visitors[1:]
         parts = [_who(c) for c in visitors]
