@@ -102,13 +102,15 @@ const careEmailText = {
 }
 
 function eventTime(event) {
+  // Match the page language (like the header date), not the browser's, so the app reads in one language.
+  const lang = document.documentElement.lang || 'en'
   if (event.all_day) {
     const [year, month, day] = event.start.split('-').map(Number)
-    return `${new Date(year, month - 1, day).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })} · All day`
+    return `${new Date(year, month - 1, day).toLocaleDateString(lang, { weekday: 'long', month: 'short', day: 'numeric' })} · All day`
   }
   const start = new Date(event.start)
-  const dayText = start.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })
-  return `${dayText} · ${start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+  const dayText = start.toLocaleDateString(lang, { weekday: 'long', month: 'short', day: 'numeric' })
+  return `${dayText} · ${start.toLocaleTimeString(lang, { hour: 'numeric', minute: '2-digit' })}`
 }
 
 function CalendarReminder({ calendar, care = false }) {
