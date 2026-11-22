@@ -482,8 +482,8 @@ async function initMap() {
     line: new google.maps.Polyline({ map, strokeColor: "#6E5683", strokeOpacity: op, strokeWeight: 1, zIndex: 1, clickable: false }) }));
   mk.route = new google.maps.Polyline({ map, strokeColor: "#6E5683", strokeOpacity: .9, strokeWeight: 5, zIndex: 2, clickable: false });
   mk.zones = ["start", "dest"].map(() => new google.maps.Circle({ map, radius: SAFE_ZONE_M, strokeColor: "#6B7F6A", strokeWeight: 2, fillColor: "#6B7F6A", fillOpacity: .12, clickable: false, visible: false }));
-  mk.start = new Adv({ content: pinEl("a", "FROM"), gmpDraggable: !ATTACH, title: ATTACH ? "Start" : "Start (drag to move)", zIndex: 50 });
-  mk.dest = new Adv({ content: pinEl("b", "TO"), gmpDraggable: !ATTACH, title: ATTACH ? "Destination" : "Destination (drag to move)", zIndex: 50 });
+  mk.start = new Adv({ content: pinEl("a", "FROM"), gmpDraggable: !EMBED, title: EMBED ? "Start" : "Start (drag to move)", zIndex: 50 });
+  mk.dest = new Adv({ content: pinEl("b", "TO"), gmpDraggable: !EMBED, title: EMBED ? "Destination" : "Destination (drag to move)", zIndex: 50 });
   for (const which of ["start", "dest"]) mk[which].addListener("dragend", () => {
     const p = mk[which].position, lat = typeof p.lat === "function" ? p.lat() : p.lat, lng = typeof p.lng === "function" ? p.lng() : p.lng;
     pinPlace(which, lat, lng);
@@ -609,7 +609,18 @@ function swapPlaces() {
 /* ---------------- planning ---------------- */
 const moveMapTo = point => matchMedia("(prefers-reduced-motion: reduce)").matches ? map.setCenter(point) : map.panTo(point);
 let planSeq = 0;
+// The full viewer can open on a dashboard journey (?journey=…). Changing FROM or TO plans a new
+// walk instead, so it stops following that journey. The embedded dashboard map never does this.
+function detachJourney() {
+  if (!attachedId || EMBED) return;
+  attachedId = null; shownRoute = "";
+  delete $("map").dataset.journey;
+  if (mk.start) { mk.start.content.textContent = "FROM"; mk.dest.content.textContent = "TO"; }
+  history.replaceState(null, "", location.pathname);
+  $("status").textContent = "Planning a new walk. Pick a scenario, or walk it yourself.";
+}
 function setPlace(which, p) {
+  detachJourney();
   place[which] = p;
   $(which === "start" ? "in-start" : "in-dest").value = p.name;
   if (map) { mk[which].position = ll([p.lat, p.lng]); mk[which].map = map; }
@@ -723,6 +734,13 @@ function showCheckin(c, jid) {
       walk.score = res.risk.score;
     }
   });
+}
+// Check-ins are written to the walker ("Hi Margaret, … Are you okay?"). The caregiver feed
+// reports who was asked, then the question without the greeting.
+function checkInForCaregiver(message) {
+  const question = (message ?? "").replace(/^Hi\b[^,]*,\s*/i, "").trim();
+  if (!question) return `The app checked in with ${walker()}.`;
+  return `The app asked ${walker()}: “${question.charAt(0).toUpperCase()}${question.slice(1)}”`;
 }
 function addEvent(cls, title, body, alertId) {
   $("noevents")?.remove();
@@ -840,7 +858,7 @@ async function step(latlng, minute) {
   showRisk(res.risk, minute, metresOff);
   logRow(minute, metresOff, res.risk, res.risk.score - walk.score);
   walk.last = latlng; walk.minute = minute; walk.score = res.risk.score;
-  if (res.checkin_created) { showCheckin(res.checkin_created, walk.id); addEvent("chk", "Check-in sent", res.checkin_created.message); }
+  if (res.checkin_created) { showCheckin(res.checkin_created, walk.id); addEvent("chk", "Check-in sent", checkInForCaregiver(res.checkin_created.message)); }
   if (res.alert_created) addEvent("alert", `Risk alert · ${res.alert_created.risk_score}/100`, res.alert_created.message, res.alert_created.id);
 }
 
@@ -902,6 +920,7 @@ let shownRoute = "";
 function showJourney(j) {
   place.start = { name: j.start.name, lat: j.start.latitude, lng: j.start.longitude };
   place.dest = { name: j.destination.name, lat: j.destination.latitude, lng: j.destination.longitude };
+  $("in-start").value = place.start.name; $("in-dest").value = place.dest.name;
   const key = JSON.stringify([j.route, j.start, j.destination]);
   if (key !== shownRoute) {
     shownRoute = key;
@@ -964,9 +983,8 @@ async function attachJourney() {
   } else j = await getJourney(JOURNEY_PARAM);
   attachedId = j.id;
   $("map").dataset.journey = j.id;
-  document.querySelectorAll("#in-start,#in-dest,#swap,[data-arm]").forEach(el => { el.disabled = true; });
   showJourney(j);
-  $("status").innerHTML = `Following journey <b class="mono">${esc(j.id)}</b>. Pick a scenario to send simulated GPS points.`;
+  $("status").innerHTML = `Following journey <b class="mono">${esc(j.id)}</b>. Pick a scenario to send simulated GPS points, or change FROM or TO to plan a new walk.`;
 }
 
 /* ---------------- start-up ---------------- */
@@ -977,7 +995,7 @@ SCENARIOS.forEach(sc => {
   $("picker").appendChild(b);
 });
 document.querySelectorAll("[data-arm]").forEach(b => b.onclick = () => arm(b.dataset.arm));
-if (!ATTACH) { placeBox("start"); placeBox("dest"); $("swap").onclick = swapPlaces; }
+if (!EMBED) { placeBox("start"); placeBox("dest"); $("swap").onclick = swapPlaces; }
 $("stop").onclick = () => { stopWalk(); $("status").textContent = "Stopped."; };
 $("m-start").onclick = () => startManual().catch(e => { $("status").textContent = "Error: " + (e.message || JSON.stringify(e)); });
 $("m-stay").onclick = () => walk?.last && moveTo(walk.last, MINUTES_PER_CLICK);

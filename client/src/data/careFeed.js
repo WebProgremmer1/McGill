@@ -20,6 +20,15 @@ export function withoutPlaceholderName(text) {
     .replace(/^(URGENT: )?App user\b/i, '$1The patient')
 }
 
+// A check-in is written to the patient ("Hi Margaret, … Are you okay?"). The caregiver feed
+// reports it instead: who was asked, then the question without the greeting.
+export function checkInForCaregiver(message, userName) {
+  const name = userName && !/^app(?: user)?$/i.test(userName.trim()) ? userName.trim() : 'the patient'
+  const question = (message ?? '').replace(/^Hi\b[^,]*,\s*/i, '').trim()
+  if (!question) return `The app checked in with ${name}.`
+  return `The app asked ${name}: “${question.charAt(0).toUpperCase()}${question.slice(1)}”`
+}
+
 // One row per backend event, using only that record's own values.
 export function buildCareFeed(journey, alerts, checkIns, journeys = []) {
   const byId = new Map(journeys.map(item => [item.id, item]))
@@ -36,7 +45,7 @@ export function buildCareFeed(journey, alerts, checkIns, journeys = []) {
   const add = entry => entries.set(entry.id, { place, sequence: 0, message: '', details: [], alertId: null, acknowledged: false, emailStatus: null, ...entry })
   const usedOkay = new Set()
   for (const item of checkIns.filter(checkIn => checkIn.journey_id === journey?.id)) {
-    add({ id: `checkin:${item.id}:sent`, kind: 'checkin', time: item.created_at, title: 'Check-in sent', message: withoutPlaceholderName(item.message) })
+    add({ id: `checkin:${item.id}:sent`, kind: 'checkin', time: item.created_at, title: 'Check-in sent', message: checkInForCaregiver(item.message, journey?.user_name) })
     if (item.status !== 'answered' || !item.answered_at) continue
     const okay = walkAlerts.find(alert => alert.type === 'said_okay' && alert.created_at === item.answered_at && !usedOkay.has(alert.id))
     if (okay) usedOkay.add(okay.id)
