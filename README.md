@@ -5,6 +5,12 @@
 Most safety apps answer *"Where is she?"*. Lark answers *"Is she getting lost?"*.
 She walks on her own, and her family is only contacted when something looks wrong.
 
+## Demo
+
+[![Lark demo video: the patient and caregiver dashboards during a walk (3 min)](media/lark-demo-preview.jpg)](media/lark-demo.mp4)
+
+▶ [Watch the 3-minute demo](media/lark-demo.mp4)
+
 ## How it works
 
 1. She picks where she is going. Lark gets the real walking route from Google.
