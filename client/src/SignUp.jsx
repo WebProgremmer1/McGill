@@ -1,13 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { authRequired } from './data/accountApi.js'
+import DemoRolePicker from './DemoRolePicker.jsx'
 import Icon from './Icon.jsx'
 import './SignUp.css'
-
-// Plain links: the URL is the role, so no session, account, or browser setting is created.
-const demoRoles = [
-  { href: '/manage', label: 'I’m a caregiver', opens: 'Opens Care dashboard', icon: 'users' },
-  { href: '/', label: 'I’m signing up for myself', opens: 'Opens Patient dashboard', icon: 'person' },
-]
 
 const roles = [
   { value: 'caregiver', label: 'I’m a caregiver', icon: 'users' },
@@ -43,7 +38,7 @@ function Field({ name, label, type = 'text', autoComplete, hint, error }) {
   )
 }
 
-export default function SignUp() {
+function AccountSignUp() {
   const formRef = useRef(null)
   const [errors, setErrors] = useState({})
   const [unavailable, setUnavailable] = useState(false)
@@ -84,21 +79,6 @@ export default function SignUp() {
     <div className="signup-page">
       <main className="signup-column">
         <h1>Sign up</h1>
-        {!authRequired && (
-          <section className="signup-demo" aria-labelledby="signup-demo-title">
-            <h2 id="signup-demo-title">Try the demo</h2>
-            <p>Choose a role. No account needed. All demo data is fictional.</p>
-            <div className="signup-role-grid">
-              {demoRoles.map(role => (
-                <a className="signup-demo-card" href={role.href} key={role.href}>
-                  <Icon name={role.icon} className="signup-role-icon" />
-                  <span>{role.label}</span>
-                  <span className="signup-demo-opens">{role.opens}<Icon name="next" /></span>
-                </a>
-              ))}
-            </div>
-          </section>
-        )}
         <h2 className="signup-account-title">Create an account</h2>
         <form ref={formRef} className="signup-form" onSubmit={submit} onChange={clearFieldError} noValidate>
           <fieldset className="signup-roles">
@@ -129,4 +109,8 @@ export default function SignUp() {
       </main>
     </div>
   )
+}
+
+export default function SignUp() {
+  return authRequired ? <AccountSignUp /> : <DemoRolePicker />
 }

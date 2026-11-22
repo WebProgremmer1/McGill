@@ -237,6 +237,16 @@ export default function BackendDemo({ family, circle = null, account = null, onA
     setRevision(value => value + 1)
   }
 
+  async function acknowledgeAlert(alertId) {
+    try {
+      await api.acknowledgeAlert(alertId)
+    } catch (error) {
+      handleAccessError(error)
+      throw error
+    }
+    setRevision(value => value + 1)
+  }
+
   async function sendMessage(text) {
     try {
       await api.sendMessage(text)
@@ -262,7 +272,8 @@ export default function BackendDemo({ family, circle = null, account = null, onA
       <div ref={messageRegion} className="sr-only" role="status" aria-live="polite" aria-atomic="true" />
       {(readError || actionError) && <p className="error-banner" role="alert">{actionError || readError}</p>}
       {family ? (
-        <CaregiverDashboard calendar={circle ? null : calendar} emailSettings={emailSettings} loaded={Boolean(data)} helpRequests={openHelp} helpTitle={helpTitle} journey={journey}
+        <CaregiverDashboard calendar={circle ? null : calendar} emailSettings={emailSettings} loaded={Boolean(data)} helpRequests={openHelp} feed={data?.activity ?? []} feedJourney={data?.feedJourney ?? null}
+          onAcknowledge={api.acknowledgeAlert ? acknowledgeAlert : null} helpTitle={helpTitle} journey={journey}
           reminder={reminder} sender={sender} recipient={recipient} openDemo={!circle} showCareTasks={!circle || Boolean(recipient)}
           messages={data?.messages} can={api.can} onSendReminder={sendReminder} />
       ) : (

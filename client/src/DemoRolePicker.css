@@ -1,0 +1,28 @@
+.role-picker { position: relative; isolation: isolate; display: grid; place-items: center; min-height: 100vh; min-height: 100dvh; padding: 24px 16px; background: #f2b8a2; }
+.role-picker-art { position: fixed; inset: 0; z-index: -1; display: block; }
+.role-picker-art img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 62% 50%; }
+.role-picker-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 20rem)); justify-content: center; gap: 28px; width: min(100%, 44rem); }
+.demo-role-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-width: 0; min-height: 250px; padding: 28px 20px; border: 2px solid #224630; border-radius: 20px; background: rgba(255, 252, 242, .62); box-shadow: 0 10px 28px rgba(50, 35, 60, .2); color: #12281b; font-size: 1.5rem; font-weight: 700; line-height: 1.25; text-align: center; text-decoration: none; -webkit-backdrop-filter: blur(14px) saturate(1.1); backdrop-filter: blur(14px) saturate(1.1); animation: demo-role-card-in .45s ease-out both; }
+.demo-role-card:nth-child(2) { animation-delay: 60ms; }
+.demo-role-card:hover { background: rgba(255, 252, 242, .76); }
+.demo-role-card:focus-visible { outline: 4px solid #12281b; outline-offset: 3px; box-shadow: 0 0 0 3px #fff; }
+.demo-role-card-icon { flex: none; width: 68px; height: 68px; color: #12281b; }
+.demo-role-card-label { overflow-wrap: anywhere; }
+.demo-role-card-opens { color: #12281b; font-size: 1.0625rem; font-weight: 600; }
+@keyframes demo-role-card-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .demo-role-card, .demo-role-card:hover { background: rgba(255, 252, 242, .9); }
+}
+@media (max-width: 600px) {
+  .role-picker-cards { grid-template-columns: minmax(0, 22rem); gap: 18px; }
+  .demo-role-card { min-height: 204px; padding: 22px 18px; }
+  .demo-role-card-icon { width: 60px; height: 60px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .demo-role-card { animation: none; }
+}
+@media (forced-colors: active) {
+  .demo-role-card { border-color: LinkText; background: Canvas; color: LinkText; }
+  .demo-role-card-icon, .demo-role-card-opens { color: LinkText; }
+  .demo-role-card:focus-visible { outline-color: Highlight; }
+}

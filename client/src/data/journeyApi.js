@@ -1,3 +1,4 @@
+import { buildCareFeed } from './careFeed.js'
 import { DEMO_REMINDER_PLACE, HELP_ONLY_PLACE, reminderRequest, reminderText } from './places.js'
 
 export const viewerUrl = '/viewer/'
@@ -66,14 +67,14 @@ export function createJourneyApi(circle = null) {
   return {
     can,
 
-    async readJourney(signal, includeMessages = false) {
+    async readJourney(signal, forCare = false) {
       const [allJourneys, reminder, alerts, routes, messages] = await Promise.all([
         can('read_journey') ? request(`${base}/journeys`, { signal }) : [],
         circle && can('read_reminders') ? request(`${base}/reminder`, { signal }) : null,
-        can('read_help') ? request(`${base}/alerts?acknowledged=false`, { signal }) : [],
+        can('read_help') ? request(`${base}/alerts${forCare ? '' : '?acknowledged=false'}`, { signal }) : [],
         request('/routes/predefined', { signal }).catch(() => ({ routes: [] })),
         // A 404 means this server predates messages. The rest of the dashboard keeps working.
-        includeMessages && can('read_messages')
+        forCare && can('read_messages')
           ? request(`${base}/messages`, { signal }).catch(error => {
             if (error.status === 404) return null
             throw error
@@ -84,17 +85,27 @@ export function createJourneyApi(circle = null) {
       const reminderRecord = circle ? null : allJourneys.filter(item => item.destination.name === DEMO_REMINDER_PLACE).at(-1)
       // The newest active journey is what both windows show, including a backend replay.
       const journey = journeys.filter(item => item.status === 'active').at(-1) ?? null
-      const helpRequests = alerts.filter(item => item.type === 'help_request')
+      const helpRequests = alerts.filter(item => item.type === 'help_request' && !item.acknowledged)
       const help = helpRequests.find(item => item.journey_id === journey?.id) ?? helpRequests[0] ?? null
       // The API returns alerts newest first. Each request keeps its own journey.
       const openHelp = helpRequests.map(alert => ({ alert, journey: allJourneys.find(item => item.id === alert.journey_id) ?? null }))
-      const checkIns = journey ? await request(`${base}/journeys/${encodeURIComponent(journey.id)}/checkins`, { signal }) : []
+      // Care reads the selected walk directly, so its feed does not depend on the live-map tab.
+      const feedJourney = forCare ? journey ?? journeys.at(-1) ?? null : null
+      const walksToRead = [...new Set([journey, feedJourney].filter(Boolean))]
+      const recentCheckIns = (await Promise.all(walksToRead.map(item => request(`${base}/journeys/${encodeURIComponent(item.id)}/checkins`, { signal })
+        .catch(error => {
+          if (error.status === 404) return []
+          throw error
+        })))).flat()
+      const checkIns = recentCheckIns.filter(item => item.journey_id === journey?.id)
       return {
         journeys,
         journey,
         checkIn: checkIns.filter(item => item.status === 'open').at(-1) ?? null,
         help,
         openHelp,
+        feedJourney,
+        activity: buildCareFeed(feedJourney, alerts, recentCheckIns),
         routes: routes.routes ?? [],
         reminder: reminderRecord ? reminderText(reminderRecord) : reminder?.message ?? null,
         reminderId: reminderRecord?.id ?? reminder?.message ?? null,
@@ -119,6 +130,9 @@ export function createJourneyApi(circle = null) {
       `${base}/journeys/${encodeURIComponent(journeyId)}/checkin`,
       { response: "I'm okay", checkin_id: checkInId },
     ),
+
+    // Circles have no authorized acknowledge route, so they never fall back to the open route.
+    acknowledgeAlert: circle ? null : alertId => request(`/alerts/${encodeURIComponent(alertId)}/acknowledge`, { method: 'POST' }),
 
     sendMessage: body => postJson(`${base}/messages`, { body }),
 
