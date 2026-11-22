@@ -28,6 +28,12 @@ https://github.com/user-attachments/assets/e04b0b74-b105-411f-a9a5-f37a6c445c9f
 
 The full rules are in [backend/README.md](backend/README.md).
 
+### Try the rules on the live map
+
+The backend's live map (`http://localhost:8000`) draws the walking route with its 50 / 150 / 300 m bands and safe zones, and shows the risk score update on every GPS point. Walk it yourself by clicking the map, or play a ready-made scenario: a normal walk, a parallel street, walking the wrong way, circling a block, wandering off after arriving, or getting lost and stopping.
+
+![Lark live map: the walking route between two places with distance bands, the risk panel and its rules, and the scenario cards](media/live-map.jpg)
+
 ## Built with
 
 Python + FastAPI (backend) · React (frontend) · Google Maps, Routes, Gmail and Calendar · Supabase
