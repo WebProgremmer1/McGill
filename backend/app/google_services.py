@@ -9,11 +9,12 @@ import logging
 import re
 import threading
 import time
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from email.message import EmailMessage
 from typing import Any, Callable
 
 from .config import Settings
+from .errors import ApiError
 from .google_auth import GoogleAuth
 from .models import Alert
 
@@ -21,6 +22,7 @@ log = logging.getLogger("google_services")
 
 GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.send"
 CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.readonly"
+CALENDAR_WRITE_SCOPE = "https://www.googleapis.com/auth/calendar.events"
 EMAIL_ADDRESS = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 CALENDAR_CACHE_S = 30
 
@@ -34,6 +36,7 @@ HELP_BODY = (
 
 GmailSender = Callable[[Any, str], str]             # (credentials, raw message) -> Gmail message ID
 CalendarLister = Callable[[Any, str, str], list]    # (credentials, calendar ID, time_min) -> events
+CalendarInserter = Callable[[Any, str, dict], dict]  # (credentials, calendar ID, event body) -> created event
 
 
 def _authorized_http(credentials: Any):
@@ -58,6 +61,15 @@ def calendar_list(credentials: Any, calendar_id: str, time_min: str) -> list[dic
         orderBy="startTime", fields="items(summary,start)",
     ).execute()
     return result.get("items", [])
+
+
+def calendar_insert(credentials: Any, calendar_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    from googleapiclient.discovery import build
+
+    service = build("calendar", "v3", http=_authorized_http(credentials), cache_discovery=False, static_discovery=True)
+    # sendUpdates="none": the event never has guests, and Google must never email anyone about it.
+    return service.events().insert(calendarId=calendar_id, body=body, sendUpdates="none",
+                                   fields="id,summary,start,end,htmlLink").execute()
 
 
 def _has_scope(google: GoogleAuth, session: dict[str, str], scope: str) -> bool:
@@ -152,6 +164,44 @@ class CalendarReader:
         result = {"state": "ok", "event": event} if event else {"state": "empty"}
         self._cache[key] = (time.monotonic() + CALENDAR_CACHE_S, result)
         return result
+
+    def forget(self, person_key: str) -> None:
+        """Drop the cached next event, so a just-added event shows on the next read."""
+        for key in [k for k in self._cache if k.startswith(f"{person_key}:")]:
+            self._cache.pop(key, None)
+
+
+class CalendarWriter:
+    """Creates one timed event in the configured calendar. Never adds guests, so Google emails no one."""
+
+    def __init__(self, settings: Settings, google: GoogleAuth, reader: CalendarReader,
+                 inserter: CalendarInserter | None = None):
+        self.settings = settings
+        self.google = google
+        self.reader = reader
+        self._insert = inserter or calendar_insert
+
+    def create(self, session: dict[str, str], title: str, start: datetime, duration_min: int,
+               note: str | None) -> dict[str, Any]:
+        if not _has_scope(self.google, session, CALENDAR_WRITE_SCOPE):
+            raise ApiError(403, "calendar_write_not_allowed",
+                           "Reconnect Google to allow adding events to the calendar.")
+        end = start + timedelta(minutes=duration_min)
+        body: dict[str, Any] = {"summary": title, "start": {"dateTime": start.isoformat()},
+                                "end": {"dateTime": end.isoformat()}}
+        if note:
+            body["description"] = note
+        try:
+            created = self._insert(self.google.credentials(session["person_key"]),
+                                   self.settings.google_calendar_id or "primary", body)
+        except Exception as error:  # noqa: BLE001 - only the error type is logged
+            log.warning("Calendar event create failed: %s", type(error).__name__)
+            raise ApiError(502, "calendar_write_failed", "Google Calendar didn't save the event. Try again.") from None
+        self.reader.forget(session["person_key"])
+        return {"title": created.get("summary") or title,
+                "start": (created.get("start") or {}).get("dateTime") or body["start"]["dateTime"],
+                "end": (created.get("end") or {}).get("dateTime") or body["end"]["dateTime"],
+                "link": created.get("htmlLink")}
 
 
 def _event_view(item: dict[str, Any], now: datetime) -> dict[str, Any] | None:

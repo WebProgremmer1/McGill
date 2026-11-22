@@ -100,7 +100,7 @@ def test_connect_redirects_to_google_with_offline_access_and_pkce(setup):
     assert q["code_challenge_method"] == ["S256"] and q["state"][0]
 
 
-def test_consent_requests_only_gmail_send_and_calendar_read(setup):
+def test_consent_requests_only_gmail_send_and_calendar_read_and_events(setup):
     client, *_ = setup
     q = _connect(client)
     assert set(q["scope"][0].split()) == {
@@ -108,6 +108,7 @@ def test_consent_requests_only_gmail_send_and_calendar_read(setup):
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/gmail.send",
         "https://www.googleapis.com/auth/calendar.readonly",
+        "https://www.googleapis.com/auth/calendar.events",  # events only; never full calendar access
     }
     assert "include_granted_scopes" not in q
     assert client.get("/api/google/contacts").status_code == 404

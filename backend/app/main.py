@@ -22,7 +22,7 @@ from .escalation import EscalationEngine
 from .escalation_api import build_router as build_escalation_router, start_ticker
 from .event_emails import EventEmails
 from .google_auth import SESSION_COOKIE, GoogleAuth
-from .google_services import CalendarLister, CalendarReader, GmailSender, HelpEmailer
+from .google_services import CalendarInserter, CalendarLister, CalendarReader, CalendarWriter, GmailSender, HelpEmailer
 from .mailer import GmailMailer
 from .reminders import VisitReminders
 from .models import (
@@ -55,6 +55,7 @@ if not any(isinstance(f, _RedactOAuthCallback) for f in _access_log.filters):
 def create_app(settings: Settings | None = None, route_provider: RouteProvider | None = None,
                store: Store | None = None, google: GoogleAuth | None = None,
                gmail_sender: GmailSender | None = None, calendar_lister: CalendarLister | None = None,
+               calendar_inserter: CalendarInserter | None = None,
                escalation: EscalationEngine | None = None,
                reminders: VisitReminders | None = None,
                event_emails: EventEmails | None = None,
@@ -64,6 +65,7 @@ def create_app(settings: Settings | None = None, route_provider: RouteProvider |
     google = google or GoogleAuth(settings, store)
     emailer = HelpEmailer(settings, google, gmail_sender)
     calendar = CalendarReader(settings, google, calendar_lister)
+    calendar_writer = CalendarWriter(settings, google, calendar, calendar_inserter)
     mailer = GmailMailer(google, gmail_sender)
     engine = escalation or EscalationEngine(store, mailer, settings)
     service = JourneyService(route_provider or RouteProvider(settings), engine)
@@ -236,7 +238,7 @@ def create_app(settings: Settings | None = None, route_provider: RouteProvider |
         service.reset()
         return {"status": "reset"}
 
-    app.include_router(build_router(store, google, settings.google_oauth_done_url, emailer, calendar))
+    app.include_router(build_router(store, google, settings.google_oauth_done_url, emailer, calendar, calendar_writer))
     app.include_router(build_escalation_router(engine, service, google))
 
     @app.get("/api/reminders", tags=["reminders"])

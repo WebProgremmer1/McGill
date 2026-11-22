@@ -12,14 +12,29 @@ from urllib.parse import parse_qs, urlparse
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
-from pydantic import BaseModel, Field
+from pydantic import AwareDatetime, BaseModel, Field, field_validator
 
 from .db import Store
 from .errors import ApiError, not_found
 from .google_auth import OAUTH_STATE_COOKIE, SCOPES, SESSION_COOKIE, SESSION_TTL_S, STATE_TTL_S, GoogleAuth
-from .google_services import CalendarReader, HelpEmailer
+from .google_services import CalendarReader, CalendarWriter, HelpEmailer
 
 EMAIL = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
+
+
+class CalendarEventCreate(BaseModel):
+    title: str = Field(..., max_length=100, examples=["Doctor appointment"])
+    start: AwareDatetime = Field(..., description="Local time with its UTC offset, e.g. 2026-11-25T10:00:00-05:00.")
+    duration_min: int = Field(60, ge=15, le=480)
+    note: str | None = Field(None, max_length=500)
+
+    @field_validator("title", "note")
+    @classmethod
+    def _trimmed(cls, value: str | None, info):
+        value = value.strip() if value is not None else None
+        if info.field_name == "title" and not value:
+            raise ValueError("Give the event a title.")
+        return value or None
 
 
 class ContactCreate(BaseModel):
@@ -66,7 +81,7 @@ def session_guard(google: GoogleAuth):
 
 
 def build_router(store: Store, google: GoogleAuth, done_url: str, emailer: HelpEmailer,
-                 calendar: CalendarReader) -> APIRouter:
+                 calendar: CalendarReader, calendar_writer: CalendarWriter) -> APIRouter:
     r = APIRouter()
     secure_cookie = google.settings.google_oauth_redirect_uri.startswith("https://")
     require_session = session_guard(google)
@@ -137,6 +152,11 @@ def build_router(store: Store, google: GoogleAuth, done_url: str, emailer: HelpE
         """The next event's title and start time, for the signed-in account only."""
         session = google.read_session(request.cookies.get(SESSION_COOKIE))
         return calendar.next_event(session) if session else {"state": "not_connected"}
+
+    @r.post("/api/google/calendar/events", status_code=201, tags=["google"])
+    def google_calendar_add(body: CalendarEventCreate, session: dict[str, str] = Depends(require_session)):
+        """Add one timed event (no guests) to the connected calendar, from the Care dashboard."""
+        return calendar_writer.create(session, body.title, body.start, body.duration_min, body.note)
 
     @r.post("/api/google/disconnect", tags=["google"])
     def google_disconnect(session: dict[str, str] = Depends(require_session)):

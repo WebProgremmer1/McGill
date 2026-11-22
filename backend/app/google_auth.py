@@ -39,6 +39,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/gmail.send",
     "https://www.googleapis.com/auth/calendar.readonly",
+    "https://www.googleapis.com/auth/calendar.events",  # the caregiver adds events from the Care dashboard
 ]
 STATE_TTL_S = 600
 ID_TOKEN_CLOCK_SKEW_S = 10  # a PC clock a few seconds behind Google must not fail sign-in

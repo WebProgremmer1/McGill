@@ -34,6 +34,15 @@ class FakeGoogle:
         self.events = []
         self.fail_calendar = False
         self.calendar_calls = []
+        self.inserted = []
+        self.fail_insert = False
+
+    def insert_event(self, credentials, calendar_id, body):
+        self.inserted.append((calendar_id, body))
+        if self.fail_insert:
+            raise RuntimeError("secret provider detail")
+        return {"id": f"evt{len(self.inserted)}", "summary": body["summary"], "start": body["start"],
+                "end": body["end"], "htmlLink": f"https://calendar.google.com/event?eid={len(self.inserted)}"}
 
     def send(self, credentials, raw):
         self.sent.append(message_from_bytes(base64.urlsafe_b64decode(raw)))
@@ -64,10 +73,13 @@ def build(tmp_path, fake=None, **over):
     def exchange(code, verifier):
         email = "someone.else@example.com" if code == "wrong-account" else ACCOUNT
         scopes = [s for s in SCOPES if "gmail" not in s] if code == "no-gmail" else SCOPES
+        if code == "no-calendar-write":
+            scopes = [s for s in SCOPES if not s.endswith("/calendar.events")]
         return TokenResult("refresh-secret", scopes, email)
 
     google = GoogleAuth(settings, store, exchange=exchange)
-    app = create_app(settings, store=store, google=google, gmail_sender=fake.send, calendar_lister=fake.list_events)
+    app = create_app(settings, store=store, google=google, gmail_sender=fake.send, calendar_lister=fake.list_events,
+                     calendar_inserter=fake.insert_event)
     return TestClient(app, follow_redirects=False), fake, store
 
 
@@ -102,6 +114,7 @@ def alerts(client):
     ("get", "/api/escalations/some-id", None),
     ("post", "/api/escalations/tick", None),
     ("post", "/api/reminders/email-now", None),
+    ("post", "/api/google/calendar/events", {"title": "Doctor", "start": "2099-03-02T10:00:00-05:00"}),
 ])
 def test_private_routes_require_a_session(tmp_path, method, path, body):
     client, *_ = build(tmp_path)
@@ -442,3 +455,81 @@ def test_im_okay_sends_no_help_email(tmp_path):
     assert response["checkin_created"]["options"] == ["I'm okay", "I need help"]
     answer = client.post(f"/api/journeys/{journey['id']}/checkin", json={"response": "I'm okay"}).json()
     assert answer["alert"]["type"] == "said_okay" and help_emails(fake) == []
+
+
+# ---------------------------------------------------------------- adding calendar events
+EVENT = {"title": " Doctor appointment ", "start": "2099-03-02T10:00:00-05:00", "duration_min": 60,
+         "note": "Bring the health card"}
+
+
+def test_new_connections_ask_to_create_calendar_events():
+    assert "https://www.googleapis.com/auth/calendar.events" in SCOPES
+    assert "https://www.googleapis.com/auth/calendar.readonly" in SCOPES
+
+
+def test_caregiver_adds_a_calendar_event(tmp_path):
+    client, fake, _ = build(tmp_path)
+    connect(client)
+    r = client.post("/api/google/calendar/events", json=EVENT)
+    assert r.status_code == 201, r.text
+    assert r.json() == {"title": "Doctor appointment", "start": "2099-03-02T10:00:00-05:00",
+                        "end": "2099-03-02T11:00:00-05:00", "link": "https://calendar.google.com/event?eid=1"}
+    calendar_id, body = fake.inserted[0]
+    assert calendar_id == "test-calendar"
+    assert body["summary"] == "Doctor appointment" and body["description"] == "Bring the health card"
+    assert body["start"] == {"dateTime": "2099-03-02T10:00:00-05:00"}
+    assert body["end"] == {"dateTime": "2099-03-02T11:00:00-05:00"}
+    assert "attendees" not in body
+
+
+def test_duration_and_note_are_optional(tmp_path):
+    client, fake, _ = build(tmp_path)
+    connect(client)
+    r = client.post("/api/google/calendar/events", json={"title": "Visit", "start": "2099-03-02T10:00:00+00:00"})
+    assert r.status_code == 201 and r.json()["end"] == "2099-03-02T11:00:00+00:00"
+    assert "description" not in fake.inserted[0][1]
+
+
+def test_primary_calendar_is_used_when_none_is_set(tmp_path):
+    client, fake, _ = build(tmp_path, google_calendar_id=None)
+    connect(client)
+    assert client.post("/api/google/calendar/events", json=EVENT).status_code == 201
+    assert fake.inserted[0][0] == "primary"
+
+
+def test_new_event_shows_in_next_event_right_away(tmp_path):
+    client, fake, _ = build(tmp_path)
+    connect(client)
+    assert client.get("/api/google/calendar/next").json() == {"state": "empty"}
+    fake.events = [{"summary": "Doctor appointment", "start": {"dateTime": "2099-03-02T10:00:00-05:00"}}]
+    client.post("/api/google/calendar/events", json=EVENT)
+    assert client.get("/api/google/calendar/next").json()["event"]["title"] == "Doctor appointment"
+
+
+@pytest.mark.parametrize("bad", [
+    {"title": "   "}, {"title": "x" * 101}, {"start": "2099-03-02T10:00:00"}, {"start": "next tuesday"},
+    {"duration_min": 5}, {"duration_min": 600}, {"note": "x" * 501},
+])
+def test_bad_event_input_is_rejected(tmp_path, bad):
+    client, fake, _ = build(tmp_path)
+    connect(client)
+    assert client.post("/api/google/calendar/events", json={**EVENT, **bad}).status_code == 422
+    assert fake.inserted == []
+
+
+def test_old_connection_without_calendar_write_must_reconnect(tmp_path):
+    client, fake, _ = build(tmp_path)
+    connect(client, code="no-calendar-write")
+    r = client.post("/api/google/calendar/events", json=EVENT)
+    assert r.status_code == 403 and r.json()["error"]["code"] == "calendar_write_not_allowed"
+    assert fake.inserted == []
+
+
+def test_google_failure_returns_502_without_logging_details(tmp_path, caplog):
+    client, fake, _ = build(tmp_path)
+    connect(client)
+    fake.fail_insert = True
+    with caplog.at_level(logging.WARNING):
+        r = client.post("/api/google/calendar/events", json=EVENT)
+    assert r.status_code == 502 and r.json()["error"]["code"] == "calendar_write_failed"
+    assert "secret provider detail" not in caplog.text and "Doctor appointment" not in caplog.text
