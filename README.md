@@ -7,9 +7,7 @@ She walks on her own, and her family is only contacted when something looks wron
 
 ## Demo
 
-[![Lark demo video: the patient and caregiver dashboards during a walk (3 min)](media/lark-demo-preview.jpg)](media/lark-demo.mp4)
-
-▶ [Watch the 3-minute demo](media/lark-demo.mp4)
+https://github.com/user-attachments/assets/e04b0b74-b105-411f-a9a5-f37a6c445c9f
 
 ## How it works
 
