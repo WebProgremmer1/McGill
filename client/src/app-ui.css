@@ -144,7 +144,7 @@ html { scroll-padding-top: 96px; }
   background: var(--gh-rose); box-shadow: 0 0 0 4px #fff, 0 0 0 5px rgba(168, 67, 90, .25);
 }
 .care-feed > li[data-feed-kind="checkin"]::before { background: var(--gh-marigold); box-shadow: 0 0 0 4px #fff, 0 0 0 5px rgba(240, 176, 79, .4); }
-.care-feed > li[data-feed-kind="answered"]::before { background: var(--gh-sage); box-shadow: 0 0 0 4px #fff, 0 0 0 5px rgba(107, 127, 106, .3); }
+.care-feed > li[data-feed-kind="answered"]::before, .care-feed > li[data-feed-kind="arrived"]::before { background: var(--gh-sage); box-shadow: 0 0 0 4px #fff, 0 0 0 5px rgba(107, 127, 106, .3); }
 .care-feed > li:not(:last-child)::after { content: ''; position: absolute; left: 9px; top: 26px; bottom: 0; border-left: 2px solid var(--gh-line); }
 .care-feed .feed-text { font-weight: 700; }
 .care-feed .feed-meta { color: var(--gh-dusk); font-size: 1rem; font-variant-numeric: tabular-nums; }

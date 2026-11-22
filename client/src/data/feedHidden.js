@@ -18,13 +18,11 @@ export function useHiddenFeed({ conversationId, accountId, enabled }) {
     return () => window.removeEventListener('storage', onStorage)
   }, [enabled, key])
 
-  const change = useCallback((id, hide) => {
-    const next = new Set([...loadIdSet(key), ...hidden])
-    if (hide) next.add(id)
-    else next.delete(id)
+  const hide = useCallback(id => {
+    const next = new Set([...loadIdSet(key), ...hidden, id])
     saveIdSet(key, next)
     setHidden(next)
   }, [hidden, key])
 
-  return { hidden, hide: useCallback(id => change(id, true), [change]), restore: useCallback(id => change(id, false), [change]) }
+  return { hidden, hide }
 }

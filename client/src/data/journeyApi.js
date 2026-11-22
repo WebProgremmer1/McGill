@@ -1,5 +1,5 @@
 import { buildCareFeed } from './careFeed.js'
-import { DEMO_REMINDER_PLACE, HELP_ONLY_PLACE, reminderRequest, reminderText } from './places.js'
+import { ARRIVAL_PLACE, DEFAULT_PATIENT_NAME, DEMO_REMINDER_PLACE, HELP_ONLY_PLACE, reminderRequest, reminderText } from './places.js'
 
 export const viewerUrl = '/viewer/'
 export const liveMapUrl = journeyId => `/viewer/live-map.html?journey=${encodeURIComponent(journeyId)}`
@@ -85,7 +85,7 @@ export function createJourneyApi(circle = null) {
       ])
       // An older running server stores every message as the patient's, so Care waits for this capability.
       if (!chatReplies) chatReplies = await request('/health', { signal }).then(health => Boolean(health.two_way_messages)).catch(() => false)
-      const journeys = allJourneys.filter(item => ![HELP_ONLY_PLACE, DEMO_REMINDER_PLACE].includes(item.destination.name))
+      const journeys = allJourneys.filter(item => ![HELP_ONLY_PLACE, DEMO_REMINDER_PLACE, ARRIVAL_PLACE].includes(item.destination.name))
       const reminderRecord = circle ? null : allJourneys.filter(item => item.destination.name === DEMO_REMINDER_PLACE).at(-1)
       // The newest active journey is what both windows show, including a backend replay.
       const journey = journeys.filter(item => item.status === 'active').at(-1) ?? null
@@ -109,7 +109,7 @@ export function createJourneyApi(circle = null) {
         help,
         openHelp,
         feedJourney,
-        activity: buildCareFeed(feedJourney, alerts, recentCheckIns, allJourneys),
+        activity: buildCareFeed(feedJourney, alerts, recentCheckIns, allJourneys, { caregivers: circle?.caregivers, recipient: circle?.care_recipient, defaultName: circle ? null : DEFAULT_PATIENT_NAME }),
         routes: routes.routes ?? [],
         reminder: reminderRecord ? reminderText(reminderRecord) : reminder?.message ?? null,
         reminderId: reminderRecord?.id ?? reminder?.message ?? null,

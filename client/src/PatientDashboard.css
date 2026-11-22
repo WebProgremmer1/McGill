@@ -3,6 +3,7 @@
 .patient-dashboard .patient-location { display: grid; gap: 2px; }
 .patient-dashboard .patient-location span { color: var(--gh-dusk); font-size: 1.0625rem; }
 .patient-dashboard .journey-panel { width: 100%; }
+.patient-dashboard .check-in-message { margin-top: 8px; font-size: 1.1875rem; line-height: 1.4; overflow-wrap: anywhere; }
 
 @media (min-width: 900px) {
   .today-view.patient-dashboard {

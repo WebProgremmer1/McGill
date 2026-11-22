@@ -9,10 +9,6 @@
 .care-feed > li.feed-entry { position: relative; padding-right: 54px; }
 .feed-hide { position: absolute; top: 6px; right: 0; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--gh-dusk); cursor: pointer; }
 .feed-hide:hover { border-color: var(--gh-line); background: var(--gh-cream); }
-.feed-hide:focus-visible, .feed-hidden-toggle:focus-visible, .feed-restore:focus-visible { outline: 3px solid var(--gh-focus); outline-offset: 2px; }
-.feed-hidden-toggle { min-height: 44px; margin-top: 8px; padding: 6px 0; border: 0; background: transparent; color: var(--gh-rose-deep); font: inherit; font-weight: 650; text-decoration: underline; cursor: pointer; }
-.feed-hidden-list { display: grid; gap: 8px; margin: 4px 0 0; padding: 0; list-style: none; }
-.feed-hidden-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 8px 0; border-top: 1px solid var(--gh-line); }
-.feed-hidden-list p { min-width: 0; overflow-wrap: anywhere; }
-.feed-restore { min-height: 44px; padding: 6px 14px; border: 1px solid var(--gh-rose); border-radius: 8px; background: var(--gh-cream); color: var(--gh-rose-deep); font: inherit; font-weight: 650; cursor: pointer; }
+.feed-hide:focus-visible { outline: 3px solid var(--gh-focus); outline-offset: 2px; }
+#care-feed-title:focus:not(:focus-visible) { outline: none; }
 @media (max-width: 420px) { .care-nav a { gap: 4px; font-size: 1rem; } .care-nav svg { width: 20px; height: 20px; } }

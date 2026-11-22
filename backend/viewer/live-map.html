@@ -318,7 +318,7 @@ const QS = new URLSearchParams(location.search);
 const JOURNEY_PARAM = QS.get("journey");   // follow this journey instead of creating one ("active" = newest)
 const ATTACH = Boolean(JOURNEY_PARAM);
 const EMBED = ATTACH && QS.get("embed") === "1";
-const PLACEHOLDERS = ["No active journey", "Demo reminder"];
+const PLACEHOLDERS = ["No active journey", "Demo reminder", "Patient arrival"];
 let attachedId = null;
 if (EMBED) document.documentElement.classList.add("embed");
 const $ = id => document.getElementById(id);
@@ -338,7 +338,14 @@ let ROUTE = null;                             // {points: [[lat, lng]], source, 
 let armed = null;                             // "start" | "dest" while picking on the map
 const mk = {};                                // map objects
 let walkLayers = [];
-const walker = () => "Margaret";   // the walker's name, used in messages
+// The walk's own name. Older walks saved as "App user" belong to Margaret, the demo patient.
+let walkerName = "Margaret";
+const setWalker = name => {
+  const text = (name ?? "").trim().replace(/\s+/g, " ");
+  walkerName = !text || /^app( user)?$/i.test(text) ? "Margaret" : text;
+};
+const walker = () => walkerName.split(" ")[0];
+const isMargaret = () => walkerName === "Margaret";
 const destName = () => place.dest?.name || "the destination";
 
 /* ---------------- metres (same idea as app/geo.py) ----------------
@@ -699,8 +706,22 @@ function showRisk(risk, minute, metresOff) {
 }
 
 /* ---------------- phone + caregiver feed ---------------- */
+// The phone talks to the walker. The caregiver feed reports about the walker.
+const phoneGreeting = text => text.replace(/^Hi(?: App(?: user)?)?,/i, () => `Hi ${walker()},`);
+function careCheckinText(c) {
+  const dest = place.dest?.name, lead = dest ? `on your way to ${dest}. ` : null;
+  const at = lead ? c.message.indexOf(lead) : -1;
+  const question = at >= 0 ? c.message.slice(at + lead.length) : c.message.replace(/^Hi\b[^.]*\.\s*/, "");
+  const sent = dest ? `Check-in sent to ${walker()} on ${isMargaret() ? "her" : "their"} way to ${dest}.` : `Check-in sent to ${walker()}.`;
+  return question ? `${sent} Asked: “${question}”` : sent;
+}
+function careAlertText(alert) {
+  const text = alert.message ?? "", urgent = text.startsWith("URGENT: ") ? "URGENT: " : "", body = text.slice(urgent.length);
+  const saved = [alert.user_name, "App user", "The patient"].find(name => name && body.startsWith(`${name} `));
+  return urgent + (saved ? walker() + body.slice(saved.length) : body);
+}
 function showCheckin(c, jid) {
-  $("phone").innerHTML = `<div class="bubble">${esc(c.message)}</div><div class="opts">${c.options.map(o =>
+  $("phone").innerHTML = `<div class="bubble">${esc(phoneGreeting(c.message))}</div><div class="opts">${c.options.map(o =>
     `<button class="btn ${o === "I need help" ? "help" : ""}" type="button">${esc(o)}</button>`).join("")}</div>`;
   $("phone").querySelectorAll("button").forEach(b => b.onclick = async () => {
     const answer = b.textContent;
@@ -708,10 +729,10 @@ function showCheckin(c, jid) {
     $("phone").innerHTML = `<div class="bubble">You answered: <b>${esc(answer)}</b></div>`;
     if (!res) return;
     if (res.alert?.type === "help_request") {
-      addEvent("crit", "Help button pressed", res.alert.message, res.deduplicated ? null : res.alert.id);
+      addEvent("crit", "Help button pressed", careAlertText(res.alert), res.deduplicated ? null : res.alert.id);
       $("phone").innerHTML += `<div class="bubble">Help is on the way. Your caregiver has been told.</div>`;
     } else if (res.alert?.type === "said_okay") {
-      addEvent("ok", `${walker()} said she's okay`, esc(res.alert.message));
+      addEvent("ok", `${walker()} said ${isMargaret() ? "she's" : "they're"} okay`, esc(careAlertText(res.alert)));
       const when = new Date(res.alert.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       $("phone").innerHTML += `<div class="bubble">Thank you, ${esc(walker())}. We told your caregiver you said you're okay at ${when}.</div>`;
     }
@@ -840,8 +861,8 @@ async function step(latlng, minute) {
   showRisk(res.risk, minute, metresOff);
   logRow(minute, metresOff, res.risk, res.risk.score - walk.score);
   walk.last = latlng; walk.minute = minute; walk.score = res.risk.score;
-  if (res.checkin_created) { showCheckin(res.checkin_created, walk.id); addEvent("chk", "Check-in sent", res.checkin_created.message); }
-  if (res.alert_created) addEvent("alert", `Risk alert · ${res.alert_created.risk_score}/100`, res.alert_created.message, res.alert_created.id);
+  if (res.checkin_created) { showCheckin(res.checkin_created, walk.id); addEvent("chk", "Check-in", careCheckinText(res.checkin_created)); }
+  if (res.alert_created) addEvent("alert", `Risk alert · ${res.alert_created.risk_score}/100`, careAlertText(res.alert_created), res.alert_created.id);
 }
 
 // ----- scenarios: a pre-built path, one point per 30 s
@@ -900,6 +921,7 @@ function mapFailed(message) {
 }
 let shownRoute = "";
 function showJourney(j) {
+  setWalker(j.user_name);
   place.start = { name: j.start.name, lat: j.start.latitude, lng: j.start.longitude };
   place.dest = { name: j.destination.name, lat: j.destination.latitude, lng: j.destination.longitude };
   const key = JSON.stringify([j.route, j.start, j.destination]);
@@ -983,7 +1005,7 @@ $("m-start").onclick = () => startManual().catch(e => { $("status").textContent 
 $("m-stay").onclick = () => walk?.last && moveTo(walk.last, MINUTES_PER_CLICK);
 $("m-help").onclick = async () => {
   const r = await post(`/journeys/${walk.id}/checkin`, { help_requested: true }).catch(() => null);
-  if (r?.alert) addEvent("crit", r.deduplicated ? "Help button pressed (already sent)" : "Help button pressed", r.alert.message, r.deduplicated ? null : r.alert.id);
+  if (r?.alert) addEvent("crit", r.deduplicated ? "Help button pressed (already sent)" : "Help button pressed", careAlertText(r.alert), r.deduplicated ? null : r.alert.id);
 };
 $("m-finish").onclick = async () => {
   await post(`/journeys/${walk.id}/complete`).catch(() => {});

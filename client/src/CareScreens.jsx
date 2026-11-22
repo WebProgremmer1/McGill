@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import ChatPanel from './ChatPanel.jsx'
 import { firstName, initials, toTelHref } from './data/contacts.js'
-import { riskLabel } from './data/careFeed.js'
+import { riskLabel, withoutPlaceholderName } from './data/careFeed.js'
 import { directionSteps, HELP_ONLY_PLACE, locationText, savedPlaces } from './data/places.js'
 import Icon from './Icon.jsx'
 import JourneyMap from './JourneyMap.jsx'
@@ -138,7 +138,7 @@ function CalendarReminder({ calendar, care = false }) {
 }
 
 export function TodayScreen({
-  calendar, checkIn, journey, help, reminder, sender, viewerIsRecipient, caregiver, helpLabel, confirmation, options, busy,
+  calendar, defaultPatientName = null, checkIn, journey, help, reminder, sender, viewerIsRecipient, caregiver, helpLabel, confirmation, options, busy,
   controlsUnavailable, canTravel, canHelp, chat, onKeepGoing, onAskForHelp, onStart, onEnd, onMoveLocation,
   remindersRef, journeyRef, detailsRef,
 }) {
@@ -165,6 +165,7 @@ export function TodayScreen({
       {checkIn && (
         <section className="check-in" aria-labelledby="check-in-title">
           <h2 id="check-in-title">{question}</h2>
+          {checkIn.message && <p className="check-in-message">{withoutPlaceholderName(checkIn.message, defaultPatientName)}</p>}
           <div className="check-in-actions">
             <button className="button primary" aria-disabled={controlsUnavailable}
               onClick={controlsUnavailable ? undefined : onKeepGoing}><Icon name="check" />Keep going</button>
@@ -311,40 +312,33 @@ function HelpRequestAction({ alert, onAcknowledge, onHandled }) {
   )
 }
 
-function CareFeed({ entries, journey, loaded, onAcknowledge, hiddenIds, onHide, onRestore }) {
-  const [showHidden, setShowHidden] = useState(false)
+function CareFeed({ entries, journey, loaded, onAcknowledge, hiddenIds, onHide }) {
   const panel = useRef(null)
+  const heading = useRef(null)
   const focusAfter = useRef(null)
   const visible = entries.filter(entry => !hiddenIds.has(entry.id))
-  const hiddenEntries = entries.filter(entry => hiddenIds.has(entry.id))
 
   // The pressed button disappears, so keyboard users continue from the nearest control.
   useEffect(() => {
     const target = focusAfter.current
     if (!target) return
     focusAfter.current = null
-    const root = panel.current
-    const button = target === 'toggle' ? null : root?.querySelector(`[data-feed-id="${CSS.escape(target)}"] .feed-hide`)
-    ;(button ?? root?.querySelector('.feed-hidden-toggle'))?.focus()
+    const button = panel.current?.querySelector(`[data-feed-id="${CSS.escape(target)}"] .feed-hide`)
+    ;(button ?? heading.current)?.focus()
   }, [hiddenIds])
 
   function hide(entry) {
     const index = visible.findIndex(item => item.id === entry.id)
-    focusAfter.current = (visible[index + 1] ?? visible[index - 1])?.id ?? 'toggle'
+    focusAfter.current = (visible[index + 1] ?? visible[index - 1])?.id ?? 'heading'
     onHide(entry.id)
-  }
-
-  function restore(entry) {
-    focusAfter.current = entry.id
-    onRestore(entry.id)
   }
 
   const time = value => new Date(value).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
   return (
     <section ref={panel} className="panel wide care-feed-panel" aria-labelledby="care-feed-title">
-      <SectionHeading id="care-feed-title" icon="users">Caregiver feed</SectionHeading>
+      <SectionHeading id="care-feed-title" icon="users" headingRef={heading}>Caregiver feed</SectionHeading>
       {journey && <p className="care-feed-walk">Walk to {journey.destination.name} · Current risk: {riskLabel(journey.risk?.level)}{journey.risk ? ` · ${journey.risk.score}/100` : ''}</p>}
-      {visible.length === 0 ? <p className="care-feed-empty">{!loaded ? 'Loading…' : hiddenEntries.length ? 'All entries are hidden.' : 'No recent activity'}</p> : (
+      {visible.length === 0 ? <p className="care-feed-empty">{loaded ? 'No recent activity' : 'Loading…'}</p> : (
         <ol className="care-feed">
           {visible.map(entry => (
             <li key={entry.id} className="feed-entry" data-feed-id={entry.id} data-feed-kind={entry.kind}>
@@ -358,23 +352,6 @@ function CareFeed({ entries, journey, loaded, onAcknowledge, hiddenIds, onHide, 
             </li>
           ))}
         </ol>
-      )}
-      {hiddenEntries.length > 0 && (
-        <>
-          <button type="button" className="feed-hidden-toggle" aria-expanded={showHidden} onClick={() => setShowHidden(value => !value)}>
-            {showHidden ? 'Hide hidden entries' : 'Show hidden entries'} ({hiddenEntries.length})
-          </button>
-          {showHidden && (
-            <ul className="feed-hidden-list">
-              {hiddenEntries.map(entry => (
-                <li key={entry.id} data-hidden-feed-id={entry.id}>
-                  <p>{entry.title} · <time dateTime={entry.time}>{time(entry.time)}</time></p>
-                  <button type="button" className="feed-restore" aria-label={`Restore ${entry.title}`} onClick={() => restore(entry)}>Restore</button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </>
       )}
     </section>
   )
@@ -431,7 +408,7 @@ export function AccountPanel({ settings, openDemo, account, onSignOut, headingRe
 }
 
 export function CaregiverDashboard({
-  calendar, loaded, helpRequests = [], feed = [], feedJourney = null, onAcknowledge = null, helpTitle, journey, reminder, sender, recipient, openDemo, showCareTasks, can, onSendReminder, onMoveLocation = null, reminderDraft, onReminderDraft, hiddenFeed, onHideFeed, onRestoreFeed,
+  calendar, loaded, helpRequests = [], feed = [], feedJourney = null, onAcknowledge = null, helpTitle, journey, reminder, sender, recipient, openDemo, showCareTasks, can, onSendReminder, onMoveLocation = null, reminderDraft, onReminderDraft, hiddenFeed, onHideFeed,
 }) {
   const onlyHelp = helpRequests.length === 1 ? helpRequests[0] : null
   const helpHeading = useRef(null)
@@ -492,7 +469,7 @@ export function CaregiverDashboard({
           )}
         </section>
       )}
-      {showCareTasks && can('read_help') && <CareFeed entries={feed} journey={feedJourney} loaded={loaded} onAcknowledge={onAcknowledge} hiddenIds={hiddenFeed} onHide={onHideFeed} onRestore={onRestoreFeed} />}
+      {showCareTasks && can('read_help') && <CareFeed entries={feed} journey={feedJourney} loaded={loaded} onAcknowledge={onAcknowledge} hiddenIds={hiddenFeed} onHide={onHideFeed} />}
       {showCareTasks && can('read_journey') && (
         <section className="panel wide" aria-labelledby="family-journey-title">
           <SectionHeading id="family-journey-title" icon="pin">Journey</SectionHeading>

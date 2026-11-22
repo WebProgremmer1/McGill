@@ -3,6 +3,8 @@ const routeName = 'tim_hortons_demo'
 const nearbyMeters = 75
 
 export const HELP_ONLY_PLACE = 'No active journey'
+// The open demo has no account, so its patient is Margaret. Signed-in accounts use their own names.
+export const DEFAULT_PATIENT_NAME = 'Margaret'
 export const home = { name: 'Home', latitude: 45.5048, longitude: -73.5772 }
 export const timHortons = { name: 'Tim Hortons', latitude: 45.5088, longitude: -73.5697 }
 export const savedPlaces = [{ ...home, icon: 'home' }, { ...timHortons, icon: 'cup' }]
@@ -21,7 +23,7 @@ export function metersBetween(a, b) {
 
 function journeyRequest(start, destination, route, userName) {
   return {
-    user_name: userName || 'App user',
+    user_name: userName || DEFAULT_PATIENT_NAME,
     start,
     destination,
     expected_arrival: new Date(Date.now() + 15 * 60000).toISOString(),
@@ -51,6 +53,22 @@ export function reminderRequest(message) {
 }
 
 export const reminderText = record => record.safe_zones.map(part => part.name).join('')
+
+// A finished walk can also come from the map's simulations, so "I've arrived" keeps its own closed record.
+export const ARRIVAL_PLACE = 'Patient arrival'
+export const ARRIVAL_ORDER_MS = 15 * 60000
+
+export function arrivalRequest(walk) {
+  const pressed = Date.now()
+  // Map taps can run a walk's clock ahead. The real time is shown, and the walk's clock only orders the feed.
+  const walkClock = Math.max(pressed, Date.parse(walk.ended_at) || 0)
+  return {
+    ...journeyRequest(home, { ...home, name: ARRIVAL_PLACE }, { route: [coordinates(home), coordinates(home)] }, walk.user_name),
+    safe_zones: [{ ...coordinates(home), name: walk.destination.name, radius_m: 1 }],
+    started_at: new Date(pressed).toISOString(),
+    expected_arrival: new Date(walkClock + ARRIVAL_ORDER_MS).toISOString(),
+  }
+}
 
 function positionOf(journey) {
   if (journey.status === 'completed') return journey.destination

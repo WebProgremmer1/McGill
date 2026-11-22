@@ -8,7 +8,7 @@ import { isOwnMessage } from './data/chat.js'
 import { firstName } from './data/contacts.js'
 import { useHiddenFeed } from './data/feedHidden.js'
 import { createJourneyApi, readCalendarReminder, readEmailSettings } from './data/journeyApi.js'
-import { destinationOptions, helpOnlyRequest } from './data/places.js'
+import { arrivalRequest, DEFAULT_PATIENT_NAME, destinationOptions, helpOnlyRequest } from './data/places.js'
 import Shell from './Shell.jsx'
 
 export default function BackendDemo({ family, circle = null, account = null, onAccessLost, onSignOut, shell }) {
@@ -31,6 +31,7 @@ export default function BackendDemo({ family, circle = null, account = null, onA
   const lastEvent = useRef(undefined)
   const messageRegion = useRef(null)
   const seenMessages = useRef(null)
+  const seenArrivals = useRef(null)
   const careChatHeading = useRef(null)
   const careAccountHeading = useRef(null)
   const focusCareView = useRef(false)
@@ -118,7 +119,7 @@ export default function BackendDemo({ family, circle = null, account = null, onA
   const viewerRole = family ? 'caregiver' : 'patient'
   const showCareChat = family && (!circle || Boolean(recipient)) && api.can('read_messages')
   const { unread, markDisplayedRead } = useChatRead({ enabled: showCareChat, messages: data?.messages, conversationId: circle?.id, accountId: account?.id })
-  const { hidden: hiddenFeed, hide: hideFeedEntry, restore: restoreFeedEntry } = useHiddenFeed({ enabled: family, conversationId: circle?.id, accountId: account?.id })
+  const { hidden: hiddenFeed, hide: hideFeedEntry } = useHiddenFeed({ enabled: family, conversationId: circle?.id, accountId: account?.id })
   const careView = family ? route?.view ?? 'home' : null
   const careBase = route?.base ?? '/manage'
 
@@ -186,6 +187,17 @@ export default function BackendDemo({ family, circle = null, account = null, onA
     }
     seenMessages.current = new Set(messages.map(item => item.id))
   }, [account?.id, data, viewerRole])
+
+  // Tell Care about each new arrival once. Arrivals already there on load are not new.
+  useEffect(() => {
+    if (!family || !data) return
+    const arrivals = (data.activity ?? []).filter(entry => entry.kind === 'arrived')
+    if (seenArrivals.current && messageRegion.current) {
+      const fresh = arrivals.find(entry => !seenArrivals.current.has(entry.id))
+      if (fresh) messageRegion.current.textContent = `${fresh.title}. ${fresh.message}`
+    }
+    seenArrivals.current = new Set(arrivals.map(entry => entry.id))
+  }, [data, family])
 
   function handleAccessError(error) {
     if (!circle || ![401, 403].includes(error.status)) return false
@@ -267,9 +279,16 @@ export default function BackendDemo({ family, circle = null, account = null, onA
 
   const endJourney = action => perform(async () => {
     const active = data.journeys.filter(item => item.status === 'active')
-    await api.closeJourney(journey.id, action)
+    const closed = await api.closeJourney(journey.id, action)
     await Promise.all(active.filter(item => item.id !== journey.id).map(item => api.closeJourney(item.id, 'cancel').catch(() => {})))
     focusAfterUpdate.current = 'journey'
+    if (action !== 'complete') return
+    try {
+      const record = await api.createJourney(arrivalRequest(closed))
+      await api.closeJourney(record.id, 'cancel').catch(() => {})
+    } catch (error) {
+      if (!handleAccessError(error)) setActionError('Your walk ended, but your caregiver’s feed didn’t update.')
+    }
   }, 'That didn’t work. Try again.')
 
   // Each move counts as one minute of walking after the previous point, so it never goes back in time.
@@ -383,9 +402,9 @@ export default function BackendDemo({ family, circle = null, account = null, onA
           onAcknowledge={api.acknowledgeAlert ? acknowledgeAlert : null} helpTitle={helpTitle} journey={journey}
           reminder={reminder} sender={sender} recipient={recipient} openDemo={!circle} showCareTasks={!circle || Boolean(recipient)}
           can={api.can} onSendReminder={sendReminder} onMoveLocation={moveLocation} reminderDraft={reminderDraft} onReminderDraft={setReminderDraft}
-          hiddenFeed={hiddenFeed} onHideFeed={hideFeedEntry} onRestoreFeed={restoreFeedEntry} />
+          hiddenFeed={hiddenFeed} onHideFeed={hideFeedEntry} />
       ) : (
-        <TodayScreen checkIn={checkIn} journey={journey} help={helpSent ? help : null} reminder={reminder} sender={sender}
+        <TodayScreen defaultPatientName={circle ? null : DEFAULT_PATIENT_NAME} checkIn={checkIn} journey={journey} help={helpSent ? help : null} reminder={reminder} sender={sender}
           calendar={circle ? null : calendar}
           viewerIsRecipient={viewerIsRecipient} caregiver={caregiver} helpLabel={helpLabel} confirmation={confirmation}
           options={options} busy={busy} controlsUnavailable={controlsUnavailable}
