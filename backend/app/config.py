@@ -20,6 +20,8 @@ class Settings:
         default_factory=lambda: ["http://localhost:5173", "http://127.0.0.1:5173"]
     )
     route_mode: str = "auto"  # "auto" or "offline"
+    # The map's From/To search falls back to OpenStreetMap (Photon) when Google Places is not enabled.
+    place_search_fallback: bool = True
     # Google sign-in (OAuth) for the person's Gmail and Calendar.
     google_oauth_client_file: Path | None = None   # JSON downloaded from Google Cloud
     google_oauth_redirect_uri: str = "http://localhost:8000/api/google/callback"
@@ -76,6 +78,7 @@ class Settings:
             google_browser_key=browser_key or None,
             cors_origins=[o.strip() for o in origins.split(",") if o.strip()],
             route_mode=(os.getenv("ROUTE_MODE") or "auto").strip().lower(),
+            place_search_fallback=(os.getenv("PLACE_SEARCH_FALLBACK") or "on").strip().lower() not in ("off", "no", "false", "0"),
             google_oauth_client_file=_path(os.getenv("GOOGLE_OAUTH_CLIENT_FILE")),
             google_oauth_redirect_uri=(os.getenv("GOOGLE_OAUTH_REDIRECT_URI")
                                        or "http://localhost:8000/api/google/callback").strip(),
