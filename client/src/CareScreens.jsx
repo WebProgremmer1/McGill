@@ -330,8 +330,9 @@ function MessagesPanel({ messages }) {
 }
 
 function helpDetail(helpJourney) {
-  if (!helpJourney || helpJourney.destination.name === HELP_ONLY_PLACE) return 'Not on a journey. Location not available.'
-  return `On the way to ${helpJourney.destination.name}. ${locationText(helpJourney)}`
+  if (!helpJourney) return 'Journey details aren’t available for this request.'
+  if (helpJourney.destination.name === HELP_ONLY_PLACE) return 'Help was requested outside a journey. No location was recorded.'
+  return `Help was requested during the walk to ${helpJourney.destination.name}. ${locationText(helpJourney)}`
 }
 
 function helpEmailText(settings) {
@@ -367,8 +368,9 @@ function AccountPanel({ settings }) {
 }
 
 export function CaregiverDashboard({
-  calendar, emailSettings, loaded, help, helpTitle, helpJourney, journey, reminder, sender, recipient, openDemo, showCareTasks, messages, can, onSendReminder,
+  calendar, emailSettings, loaded, helpRequests = [], helpTitle, journey, reminder, sender, recipient, openDemo, showCareTasks, messages, can, onSendReminder,
 }) {
+  const onlyHelp = helpRequests.length === 1 ? helpRequests[0] : null
   const cardTitle = recipient ? `Caring for ${recipient.name}` : openDemo ? 'Demo care recipient' : 'No one is linked yet.'
   return (
     <div className="family-view">
@@ -381,10 +383,23 @@ export function CaregiverDashboard({
         {recipient && <CallLink person={recipient} />}
       </section>
       {showCareTasks && can('read_help') && (
-        <section className={help ? 'panel help-panel has-request' : 'panel help-panel'} data-journey-id={help?.journey_id} aria-labelledby="help-title">
-          <h2 id="help-title" className="icon-heading"><Icon name="help" />{help ? helpTitle : 'Help requests'}</h2>
-          <p>{help ? helpDetail(helpJourney) : loaded ? 'No help requests.' : 'Loading…'}</p>
-          <p className="email-status" role="status" data-email-status={help?.email_status}>{help ? careEmailText[help.email_status] ?? '' : ''}</p>
+        <section className={helpRequests.length ? 'panel help-panel has-request' : 'panel help-panel'} data-journey-id={onlyHelp?.alert.journey_id} aria-labelledby="help-title">
+          <h2 id="help-title" className="icon-heading"><Icon name="help" />{helpRequests.length ? helpTitle : 'Help requests'}</h2>
+          {helpRequests.length > 1 ? (
+            <ol className="help-request-list">
+              {helpRequests.map(({ alert, journey: requestJourney }) => (
+                <li key={alert.id} data-alert-id={alert.id} data-journey-id={alert.journey_id}>
+                  <p>{helpDetail(requestJourney)}</p>
+                  <p className="email-status" role="status" data-email-status={alert.email_status}>{careEmailText[alert.email_status] ?? ''}</p>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <>
+              <p>{onlyHelp ? helpDetail(onlyHelp.journey) : loaded ? 'No help requests.' : 'Loading…'}</p>
+              <p className="email-status" role="status" data-email-status={onlyHelp?.alert.email_status}>{onlyHelp ? careEmailText[onlyHelp.alert.email_status] ?? '' : ''}</p>
+            </>
+          )}
         </section>
       )}
       {showCareTasks && can('read_messages') && <MessagesPanel messages={messages} />}

@@ -378,3 +378,10 @@ button.destination-button[aria-disabled="true"] { cursor: progress; }
 .map-presenter a { display: inline-flex; align-items: center; min-height: 44px; }
 
 .live-map-action { display: flex; width: 100%; margin-top: 12px; justify-content: center; text-align: center; }
+
+/* Several open help requests on Care, newest first */
+.help-request-list { display: grid; margin: 8px 0 0; padding: 0; list-style: none; }
+.help-request-list li { min-width: 0; padding: 10px 0; border-top: 1px solid rgba(138, 47, 29, .35); }
+.help-request-list li:first-child { padding-top: 0; border-top: 0; }
+.help-request-list li:last-child { padding-bottom: 0; }
+.help-request-list li p:first-child { margin-top: 0; overflow-wrap: anywhere; }

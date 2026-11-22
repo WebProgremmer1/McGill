@@ -91,7 +91,7 @@ export default function BackendDemo({ family, circle = null, account = null, onA
     helpLock.current = null
   }, [data])
 
-  const { journey = null, checkIn = null, help = null, helpJourney = null } = data ?? {}
+  const { journey = null, checkIn = null, help = null, openHelp = [] } = data ?? {}
   const canReadReminders = api.can('read_reminders')
   const reminder = canReadReminders ? data?.reminder ?? null : null
   const reminderKey = canReadReminders ? data?.reminderId ?? null : null
@@ -165,8 +165,10 @@ export default function BackendDemo({ family, circle = null, account = null, onA
   }
 
   const destination = journey?.destination.name
-  const event = family ? help : checkIn
-  const helpTitle = recipient ? `${firstName(recipient)} asked for help.` : 'A help request is waiting.'
+  const event = family ? openHelp[0]?.alert ?? null : checkIn
+  const helpTitle = openHelp.length > 1
+    ? `${openHelp.length} help requests are waiting.`
+    : recipient ? `${firstName(recipient)} asked for help.` : 'A help request is waiting.'
   const announcement = family ? helpTitle : `Still heading to ${destination}?`
   const controlsUnavailable = busy || Boolean(readError)
   const options = data ? destinationOptions(data.journeys, data.routes, account?.name) : []
@@ -260,7 +262,7 @@ export default function BackendDemo({ family, circle = null, account = null, onA
       <div ref={messageRegion} className="sr-only" role="status" aria-live="polite" aria-atomic="true" />
       {(readError || actionError) && <p className="error-banner" role="alert">{actionError || readError}</p>}
       {family ? (
-        <CaregiverDashboard calendar={circle ? null : calendar} emailSettings={emailSettings} loaded={Boolean(data)} help={help} helpTitle={helpTitle} helpJourney={helpJourney} journey={journey}
+        <CaregiverDashboard calendar={circle ? null : calendar} emailSettings={emailSettings} loaded={Boolean(data)} helpRequests={openHelp} helpTitle={helpTitle} journey={journey}
           reminder={reminder} sender={sender} recipient={recipient} openDemo={!circle} showCareTasks={!circle || Boolean(recipient)}
           messages={data?.messages} can={api.can} onSendReminder={sendReminder} />
       ) : (

@@ -86,14 +86,15 @@ export function createJourneyApi(circle = null) {
       const journey = journeys.filter(item => item.status === 'active').at(-1) ?? null
       const helpRequests = alerts.filter(item => item.type === 'help_request')
       const help = helpRequests.find(item => item.journey_id === journey?.id) ?? helpRequests[0] ?? null
-      const helpJourney = help ? allJourneys.find(item => item.id === help.journey_id) ?? null : null
+      // The API returns alerts newest first. Each request keeps its own journey.
+      const openHelp = helpRequests.map(alert => ({ alert, journey: allJourneys.find(item => item.id === alert.journey_id) ?? null }))
       const checkIns = journey ? await request(`${base}/journeys/${encodeURIComponent(journey.id)}/checkins`, { signal }) : []
       return {
         journeys,
         journey,
         checkIn: checkIns.filter(item => item.status === 'open').at(-1) ?? null,
         help,
-        helpJourney,
+        openHelp,
         routes: routes.routes ?? [],
         reminder: reminderRecord ? reminderText(reminderRecord) : reminder?.message ?? null,
         reminderId: reminderRecord?.id ?? reminder?.message ?? null,
