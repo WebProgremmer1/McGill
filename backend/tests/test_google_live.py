@@ -67,7 +67,7 @@ def test_gmail_accepts_a_plain_email(live):
     assert msg_id, "Gmail returned no message id"
 
 
-def test_new_contact_receives_a_real_alert_then_an_arrived_update(live):
+def test_new_contact_receives_a_real_alert_then_an_ended_update(live):
     settings, store, google, me, to = live
     for c in store.list_contacts():
         store.delete_contact(c["id"])
@@ -94,10 +94,10 @@ def test_new_contact_receives_a_real_alert_then_an_arrived_update(live):
     stored = [x for x in store.list_notifications(esc["id"]) if x["kind"] == "sequential"]
     assert stored[0]["ack_token_hash"]                       # the email carries an "I'm on it" link
 
-    client.post(f"/api/journeys/{j['id']}/complete")         # sends the "arrived" update too
+    client.post(f"/api/journeys/{j['id']}/complete")         # still lost: "walk was ended" update
     notes = client.get(f"/api/escalations/{esc['id']}").json()["notifications"]
-    arrived = [n for n in notes if n["kind"] == "arrived"]
-    assert arrived and arrived[0]["error"] is None and arrived[0]["gmail_message_id"]
+    ended = [n for n in notes if n["kind"] == "ended"]
+    assert ended and ended[0]["error"] is None and ended[0]["gmail_message_id"]
 
 
 # ---------------------------------------------------------------- Calendar

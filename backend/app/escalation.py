@@ -8,7 +8,8 @@ Rules (design: docs/superpowers/specs/2026-11-21-google-escalation-design.md):
 - Score 90-100 or the help button: email every contact at once.
 - "I'm on it" (from any contact) or acknowledging the alert on the dashboard stops it for everyone.
 - "I'm okay" from the person after family was emailed: send them an "all good" update and close.
-  Arriving at the destination does the same with an "arrived" update.
+  Arriving at the destination does the same with an "arrived" update. A walk ended in the app
+  while she is NOT at the destination sends an "ended" update with her last location instead.
 
 Delays use the wall clock (`clock`), not GPS time. State lives in the store (Supabase), and every
 escalation keeps a snapshot of the journey, so a restarted server carries on from the database.
@@ -27,7 +28,8 @@ from .db import Row, Store
 from .errors import ApiError, not_found
 from .mailer import Mailer
 from .models import DISCLAIMER, Journey
-from .risk import CRITICAL_MIN
+from .geo import distance_m
+from .risk import ARRIVED_M, CRITICAL_MIN
 
 log = logging.getLogger(__name__)
 
@@ -114,7 +116,9 @@ class EscalationEngine:
             if not esc:
                 return
             if status == "completed" and esc["tier"] != "person":
-                self._update_family(esc, snapshot(j), "arrived")
+                here = j.latest_location
+                arrived = here is not None and distance_m(here, j.destination) <= ARRIVED_M
+                self._update_family(esc, snapshot(j), "arrived" if arrived else "ended")
             self._close(esc)
 
     def on_alert_acknowledged(self, journey_id: str) -> None:
@@ -297,6 +301,11 @@ class EscalationEngine:
         if kind == "arrived":
             subject = f"Update: {name} arrived at {snap['destination']}"
             body = f"{name} has arrived at {snap['destination']}. No further emails will be sent."
+        elif kind == "ended":
+            subject = f"Update: {name}'s walk was ended in the app"
+            body = (f"{name}'s walk was marked as finished in the app, but the last location was "
+                    f"not at {snap['destination']}. No further emails will be sent for this alert. "
+                    f"Please check on {name} if you haven't heard from anyone.")
         else:
             subject = f"Update: {name} is okay"
             body = (f"{name} answered \"I'm okay\" on the phone. The alert is closed and no "

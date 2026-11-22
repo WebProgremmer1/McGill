@@ -19,7 +19,7 @@ from app.escalation import EscalationEngine
 from app.geo import offset_point
 from app.main import create_app
 
-from conftest import HOME, far_off_route, make_journey, send
+from conftest import HOME, SHOP, far_off_route, make_journey, send
 
 ME = "margaret@example.com"
 
@@ -245,8 +245,21 @@ def test_arriving_closes_and_tells_family(env):
     client, store, mailer, *_ = env
     j = make_journey(client)
     walk_west(client, j["id"], 0, 10)
+    send(client, j["id"], *SHOP, 11)                          # she does get there
     client.post(f"/api/journeys/{j['id']}/complete")
     assert mailer.to()[-1] == "anna@example.com" and "arrived" in mailer.sent[-1]["subject"].lower()
+    assert store.list_escalations()[0]["status"] == "closed"
+
+
+def test_walk_ended_away_from_destination_never_claims_she_arrived(env):
+    client, store, mailer, *_ = env
+    j = make_journey(client)
+    walk_west(client, j["id"], 0, 10)                         # still lost
+    client.post(f"/api/journeys/{j['id']}/complete")
+    last = mailer.sent[-1]
+    assert last["to"] == "anna@example.com"
+    assert "arrived" not in last["subject"].lower() and "ended" in last["subject"].lower()
+    assert "google.com/maps" in last["text"] and "not at Tim Hortons" in last["text"]
     assert store.list_escalations()[0]["status"] == "closed"
 
 
