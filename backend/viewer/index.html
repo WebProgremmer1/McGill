@@ -28,6 +28,17 @@
   select { font-size:14px; padding:4px; }
   .bigtip { font-size:15px; font-weight:bold; letter-spacing:1px; }
   hr { border:0; border-top:1px solid #ddd; margin:14px 0; }
+  /* Golden Hour map look: warm tiles, soft labels and controls. */
+  .leaflet-container { background:#FDE9C4; font-family: inherit; }
+  .leaflet-tile-pane { filter: sepia(.22) saturate(.9) brightness(1.03) hue-rotate(-8deg); }
+  .leaflet-tooltip { padding:6px 12px; border:0; border-radius:999px; background:#FFF6E8; color:#3B2B45; font-size:14px; font-weight:600; box-shadow:0 4px 14px rgba(59,43,69,.2); }
+  .leaflet-tooltip-top:before { border-top-color:#FFF6E8; }
+  .leaflet-tooltip-bottom:before { border-bottom-color:#FFF6E8; }
+  .leaflet-touch .leaflet-bar, .leaflet-bar { border:0; border-radius:14px; overflow:hidden; box-shadow:0 4px 14px rgba(59,43,69,.18); }
+  .leaflet-bar a, .leaflet-bar a:hover { background:#FFF6E8; color:#5B4A6E; border-bottom-color:#EDD3AA; }
+  .leaflet-bar a:hover { background:#FDE9C4; }
+  .leaflet-control-attribution { background:rgba(255,246,232,.85) !important; border-radius:10px 0 0 0; color:#5B4A6E; }
+  .leaflet-control-attribution a { color:#8E3549; }
 </style>
 </head>
 <body>
@@ -65,7 +76,8 @@
 <script>
 const COLORS = { low: "#2e9e4f", medium: "#f0a000", high: "#d93025" };
 const HOME = [45.5048, -73.5772], SHOP = [45.5088, -73.5697];
-const map = L.map("map").setView([45.506, -73.575], 16);
+// Quarter-step zoom and a slower wheel make zooming feel smooth rather than jumpy.
+const map = L.map("map", { zoomSnap: 0.25, zoomDelta: 0.5, wheelPxPerZoomLevel: 120 }).setView([45.506, -73.575], 16);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(map);
 let layers = [];
 let live = null; // {id, clock, last, marker}

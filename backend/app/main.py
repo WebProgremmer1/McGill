@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import BackgroundTasks, Depends, FastAPI, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
@@ -29,6 +29,7 @@ from .models import (
     DISCLAIMER, Alert, CheckIn, CheckInRequest, CheckInResult, Journey,
     JourneyCreate, LocationResult, LocationUpdate, Message, MessageCreate, Place, RouteRequest,
 )
+from .place_search import PlaceSearch
 from .routes_provider import PREDEFINED_ROUTES, RouteProvider
 from .service import JourneyService
 
@@ -56,7 +57,8 @@ def create_app(settings: Settings | None = None, route_provider: RouteProvider |
                gmail_sender: GmailSender | None = None, calendar_lister: CalendarLister | None = None,
                escalation: EscalationEngine | None = None,
                reminders: VisitReminders | None = None,
-               event_emails: EventEmails | None = None) -> FastAPI:
+               event_emails: EventEmails | None = None,
+               place_search: PlaceSearch | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
     store = store or create_store(settings)
     google = google or GoogleAuth(settings, store)
@@ -68,6 +70,7 @@ def create_app(settings: Settings | None = None, route_provider: RouteProvider |
     reminders = reminders or VisitReminders(store, settings, google=google)
     event_emails = event_emails or EventEmails(store, mailer, reminders, settings)
     require_session = session_guard(google)
+    places = place_search or PlaceSearch(settings)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
@@ -143,6 +146,20 @@ def create_app(settings: Settings | None = None, route_provider: RouteProvider |
         r = service.routes.resolve(start, dest, None, None)
         return {"route": r.points, "route_source": r.source, "route_warning": r.warning,
                 "distance_m": r.distance_m, "duration_s": r.duration_s}
+
+    @app.get("/api/places/search", tags=["live map"])
+    def search_places(q: str = Query(..., min_length=2, max_length=120),
+                      lat: float | None = Query(None, ge=-90, le=90),
+                      lng: float | None = Query(None, ge=-180, le=180)):
+        """Suggestions for the map's From / To boxes, inside the Montreal area.
+        `lat`/`lng` (optional) rank places near that point first."""
+        near = (lat, lng) if lat is not None and lng is not None else None
+        return places.search(q, near)
+
+    @app.get("/api/places/reverse", tags=["live map"])
+    def reverse_place(lat: float = Query(..., ge=-90, le=90), lng: float = Query(..., ge=-180, le=180)):
+        """A readable name for a spot picked on the map (null when unknown)."""
+        return places.reverse(lat, lng)
 
     @app.get("/api/routes/predefined", tags=["system"])
     def predefined_routes():

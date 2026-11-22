@@ -1,7 +1,7 @@
 .patient-dashboard .patient-help { display: grid; gap: 12px; }
 .patient-dashboard .care-calendar { margin-top: 0; }
 .patient-dashboard .patient-location { display: grid; gap: 2px; }
-.patient-dashboard .patient-location span { color: #38503e; font-size: 1.0625rem; }
+.patient-dashboard .patient-location span { color: var(--gh-dusk); font-size: 1.0625rem; }
 .patient-dashboard .journey-panel { width: 100%; }
 
 @media (min-width: 900px) {

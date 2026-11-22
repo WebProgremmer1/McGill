@@ -1,0 +1,216 @@
+/* App layer: makes the dashboards read like a real mobile/desktop app.
+   Patterns: sticky app bar, one colored hero card per screen, white cards with an
+   icon-tile header, settings-style list rows, a dotted activity timeline, status chips.
+   Loaded after App.css and theme.css. */
+
+:root {
+  --ui-font: 'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', 'Segoe UI', system-ui, sans-serif;
+  --ui-radius: 22px;
+  --ui-radius-sm: 14px;
+  --ui-shadow: 0 1px 2px rgba(59, 43, 69, .05), 0 8px 24px rgba(110, 86, 131, .09);
+  --ui-shadow-lift: 0 2px 4px rgba(59, 43, 69, .06), 0 16px 36px rgba(110, 86, 131, .16);
+  --ui-gap: 20px;
+  font-family: var(--ui-font);
+}
+body { background: var(--gh-cream); }
+.page { padding: 28px 24px 64px; min-height: auto; }
+
+/* ---------- App bar ---------- */
+.site-header.app-bar {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 14px;
+  min-height: 76px; padding: 12px max(20px, calc((100vw - 76rem) / 2));
+  border-bottom: 1px solid rgba(237, 211, 170, .7);
+  background: rgba(255, 246, 232, .86);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px); backdrop-filter: saturate(1.4) blur(14px);
+}
+.app-mark {
+  flex: none; display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px;
+  background: linear-gradient(145deg, var(--gh-rose), var(--gh-plum)); color: #fff;
+  box-shadow: 0 6px 16px rgba(142, 53, 73, .28);
+}
+.app-mark svg { width: 26px; height: 26px; stroke-width: 2; }
+.app-title { min-width: 0; flex: 1; display: grid; gap: 2px; }
+.app-bar .person-name { grid-area: auto; margin: 0; display: block; text-align: left; font-size: clamp(1.375rem, 1.1rem + 1vw, 1.75rem); font-weight: 700; letter-spacing: -.3px; line-height: 1.15; white-space: normal; overflow-wrap: anywhere; }
+.app-subtitle { color: var(--gh-dusk); font-size: 1rem; line-height: 1.3; }
+.app-bar .header-action { flex: none; }
+.app-bar .care-nav { flex: none; align-self: stretch; gap: 8px; margin: 0; }
+.app-bar .care-nav a { padding: 8px 10px; }
+.skip-link { z-index: 30; }
+/* Anchors and focused controls stop below the sticky bar. */
+html { scroll-padding-top: 96px; }
+
+/* ---------- Cards ---------- */
+.today-view .today-section, .family-view .panel, .family-view .panel:not(.has-request, .demo-controls) {
+  padding: 22px; border: 1px solid rgba(237, 211, 170, .9); border-radius: var(--ui-radius); background: #fff; box-shadow: var(--ui-shadow);
+}
+.icon-heading { gap: 12px; font-size: 1.25rem; font-weight: 700; letter-spacing: -.2px; }
+.family-view .panel h2, .today-section h2 { font-size: 1.3rem; font-weight: 700; }
+.icon-heading svg {
+  width: 40px; height: 40px; padding: 8px; border-radius: 12px; background: var(--gh-sand); color: var(--gh-rose); stroke-width: 2;
+}
+
+/* ---------- Patient screen ---------- */
+.today-view { max-width: 72rem; display: grid; gap: var(--ui-gap); font-size: 1.1875rem; }
+
+/* Hero: the day's reminders, in the app's one colored card. */
+.today-view .message-card {
+  position: relative; overflow: hidden; isolation: isolate;
+  border: 0; background: linear-gradient(150deg, var(--gh-rose) 0%, #8C4A6C 55%, var(--gh-plum) 100%);
+  box-shadow: 0 18px 40px rgba(110, 86, 131, .3);
+}
+.today-view .message-card::after {
+  content: ''; position: absolute; z-index: -1; right: -70px; top: -70px; width: 220px; height: 220px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 228, 160, .55), rgba(255, 228, 160, 0) 70%);
+}
+.message-card .icon-heading svg { background: rgba(255, 255, 255, .18); color: #fff; }
+.message-card .reminder-message { font-size: 1.3rem; line-height: 1.45; }
+
+/* Quick actions */
+.patient-actions { gap: 12px; padding: 16px; border-radius: var(--ui-radius); background: #fff; border: 1px solid rgba(237, 211, 170, .9); box-shadow: var(--ui-shadow); }
+.today-confirmation-wrap:not(:has(:not(:empty))) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.patient-help:not(:has(.get-help)):not(:has(.today-confirmation:not(:empty))) { padding: 0; border: 0; background: none; box-shadow: none; }
+.today-confirmation:not(:empty), .email-status:not(:empty) { border-radius: var(--ui-radius-sm); }
+
+/* Check-in: an attention banner at the top of the screen. */
+.today-view .check-in {
+  display: grid; gap: 4px; padding: 24px; border: 2px solid var(--gh-marigold); border-radius: var(--ui-radius);
+  background: linear-gradient(180deg, #FFF9EE, #fff); box-shadow: var(--ui-shadow-lift);
+}
+.today-view .check-in h2 { display: flex; align-items: center; gap: 14px; }
+.today-view .check-in h2::before {
+  content: ''; flex: none; width: 14px; height: 14px; border-radius: 50%; background: var(--gh-marigold);
+  box-shadow: 0 0 0 6px rgba(240, 176, 79, .3);
+}
+.today-view .check-in-actions { margin-top: 16px; }
+
+/* Destinations as tappable list rows with a chevron. */
+.destination-list { gap: 0; border: 1px solid rgba(237, 211, 170, .9); border-radius: var(--ui-radius-sm); overflow: hidden; }
+.destination-list li + li { border-top: 1px solid rgba(237, 211, 170, .9); }
+.today-view .button.destination-button {
+  min-height: 76px; padding: 12px 18px; border: 0; border-radius: 0; background: #fff; box-shadow: none; font-size: 1.375rem;
+}
+.today-view .button.destination-button:hover { background: var(--gh-cream); }
+.today-view .button.destination-button svg { width: 48px; height: 48px; padding: 10px; border-radius: 14px; background: var(--gh-sand); }
+.today-view .button.destination-button::after {
+  content: ''; margin-left: auto; flex: none; width: 12px; height: 12px; border-top: 3px solid var(--gh-dusk); border-right: 3px solid var(--gh-dusk);
+  border-radius: 2px; transform: rotate(45deg);
+}
+
+/* Directions as a numbered stepper. */
+.direction-steps { list-style: none; counter-reset: step; padding: 0; gap: 0; font-size: 1.125rem; }
+.direction-steps li { position: relative; counter-increment: step; padding: 6px 0 18px 48px; }
+.direction-steps li::before {
+  content: counter(step); position: absolute; left: 0; top: 2px; display: grid; place-items: center; width: 32px; height: 32px;
+  border-radius: 50%; background: var(--gh-sand); color: var(--gh-ink); font-weight: 700; font-size: 1rem;
+}
+.direction-steps li:not(:last-child)::after {
+  content: ''; position: absolute; left: 15px; top: 38px; bottom: 2px; border-left: 2px dotted var(--gh-marigold);
+}
+.directions-note { color: var(--gh-dusk); font-size: 1rem; }
+
+/* ---------- Care screen ---------- */
+.family-view {
+  max-width: 76rem; display: grid; gap: var(--ui-gap); font-size: 1.125rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* Hero: who you are caring for. */
+.family-view .caring-card {
+  position: relative; overflow: hidden; isolation: isolate; gap: 18px; padding: 24px 26px; border: 0; border-radius: var(--ui-radius);
+  background: linear-gradient(120deg, var(--gh-apricot), var(--gh-sand) 60%, #FFF0DA); box-shadow: var(--ui-shadow);
+}
+.family-view .caring-card::after {
+  content: ''; position: absolute; z-index: -1; right: -40px; bottom: -90px; width: 260px; height: 180px; border-radius: 50% 50% 0 0;
+  background: rgba(143, 109, 151, .14);
+}
+.caring-card .contact-photo { width: 64px; height: 64px; box-shadow: 0 0 0 4px #fff; }
+.caring-card h2 { font-size: 1.625rem; font-weight: 700; }
+
+/* Help: an alert card that is impossible to miss when active. */
+.family-view .help-panel.has-request { border: 2px solid #8a2f1d; border-left-width: 2px; background: #FFF3EC; box-shadow: 0 12px 30px rgba(138, 47, 29, .16); }
+.family-view .help-panel.has-request h2 svg { background: #8a2f1d; color: #fff; }
+.family-view .help-panel:not(.has-request) p { color: var(--gh-dusk); }
+
+/* Activity timeline */
+.care-feed-walk {
+  display: inline-flex; align-items: center; gap: 8px; justify-self: start; width: fit-content; margin-top: 12px; padding: 6px 14px;
+  border-radius: 999px; background: var(--gh-sand); font-size: 1rem;
+}
+.care-feed { margin-top: 14px; }
+.care-feed > li { position: relative; padding: 4px 0 18px 30px; border-top: 0; }
+.care-feed > li::before {
+  content: ''; position: absolute; left: 4px; top: 10px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--gh-rose); box-shadow: 0 0 0 4px #fff, 0 0 0 5px rgba(168, 67, 90, .25);
+}
+.care-feed > li[data-feed-kind="checkin"]::before { background: var(--gh-marigold); box-shadow: 0 0 0 4px #fff, 0 0 0 5px rgba(240, 176, 79, .4); }
+.care-feed > li[data-feed-kind="answered"]::before { background: var(--gh-sage); box-shadow: 0 0 0 4px #fff, 0 0 0 5px rgba(107, 127, 106, .3); }
+.care-feed > li:not(:last-child)::after { content: ''; position: absolute; left: 9px; top: 26px; bottom: 0; border-left: 2px solid var(--gh-line); }
+.care-feed .feed-text { font-weight: 700; }
+.care-feed .feed-meta { color: var(--gh-dusk); font-size: 1rem; font-variant-numeric: tabular-nums; }
+
+/* Settings-style list rows */
+.saved-places { gap: 0; margin-top: 14px; border: 1px solid rgba(237, 211, 170, .9); border-radius: var(--ui-radius-sm); overflow: hidden; }
+.saved-places li { min-height: 60px; padding: 10px 16px; gap: 14px; background: #fff; }
+.saved-places li + li { border-top: 1px solid rgba(237, 211, 170, .9); }
+.saved-places svg { width: 36px; height: 36px; padding: 7px; border-radius: 10px; background: var(--gh-sand); }
+.saved-places span { margin-left: auto; padding: 4px 12px; border-radius: 999px; background: var(--gh-marigold); color: var(--gh-ink); font-size: .9375rem; font-weight: 700; }
+
+.message-list li { border-radius: 4px var(--ui-radius-sm) var(--ui-radius-sm) var(--ui-radius-sm); background: var(--gh-cream); border-color: rgba(237, 211, 170, .9); }
+.message-meta { font-variant-numeric: tabular-nums; }
+
+.email-settings { display: grid; gap: 0; margin: 12px 0 0; border: 1px solid rgba(237, 211, 170, .9); border-radius: var(--ui-radius-sm); overflow: hidden; }
+.email-settings > div { display: grid; gap: 2px; padding: 12px 16px; background: #fff; }
+.email-settings > div + div { border-top: 1px solid rgba(237, 211, 170, .9); }
+.email-settings dt { color: var(--gh-dusk); font-size: .9375rem; }
+.email-settings dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+.account-panel h3 { margin-top: 12px; font-size: 1.0625rem; }
+.settings-note { margin-top: 10px; color: var(--gh-dusk); font-size: .9375rem; }
+
+/* Empty states */
+.journey-empty, .care-feed-empty, .family-view .help-panel:not(.has-request) > p:not(.email-status) {
+  margin-top: 12px; padding: 14px 16px; border: 1.5px dashed var(--gh-line); border-radius: var(--ui-radius-sm); background: var(--gh-cream);
+  color: var(--gh-dusk);
+}
+.family-view .help-panel:not(.has-request) > .email-status:empty { display: none; }
+
+/* ---------- Forms ---------- */
+.reminder-form textarea, .onboarding-field input, .onboarding-field select {
+  border: 2px solid var(--gh-line); border-radius: var(--ui-radius-sm); background: var(--gh-cream);
+  transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+}
+.reminder-form textarea:hover { border-color: var(--gh-violet); }
+.reminder-form textarea:focus { border-color: var(--gh-rose); background: #fff; box-shadow: 0 0 0 4px rgba(168, 67, 90, .15); }
+.reminder-form label { font-weight: 700; }
+
+/* ---------- Footer ---------- */
+footer { max-width: 76rem; padding: 20px 24px 32px; border-top: 0; }
+
+@media (max-width: 700px) {
+  .page { padding: 18px 16px 48px; }
+  html { scroll-padding-top: 140px; }
+  .site-header.app-bar { min-height: 68px; padding: 10px 16px 0; gap: 4px 12px; }
+  .site-header.app-bar:not(:has(.care-nav)) { padding-bottom: 10px; }
+  .app-bar .care-nav { flex: 1 1 100%; gap: 0; }
+  .app-bar .care-nav a { padding: 6px 4px; }
+  .app-mark { width: 40px; height: 40px; border-radius: 12px; }
+  .app-subtitle { font-size: .9375rem; }
+  .today-view .today-section, .family-view .panel, .family-view .panel:not(.has-request, .demo-controls), .patient-actions { padding: 18px; }
+  .family-view .caring-card { padding: 20px; }
+}
+/* On a short screen the bar scrolls away and leaves room for the content. */
+@media (max-height: 560px) {
+  .site-header.app-bar { position: static; }
+  html { scroll-padding-top: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reminder-form textarea, .onboarding-field input, .onboarding-field select { transition: none; }
+}
+@media (forced-colors: active) {
+  .icon-heading svg, .app-mark { border: 1px solid CanvasText; }
+}
+
+/* Demo hint under a movable map. */
+.map-hint { display: flex; align-items: center; gap: 8px; padding: 10px 20px 0; color: var(--gh-dusk); font-size: 1rem; }
+.map-hint svg { flex: none; width: 20px; height: 20px; color: var(--gh-rose); }
+.journey-panel .map-hint { padding: 12px 20px 0; }

@@ -272,6 +272,16 @@ export default function BackendDemo({ family, circle = null, account = null, onA
     focusAfterUpdate.current = 'journey'
   }, 'That didn’t work. Try again.')
 
+  // Each move counts as one minute of walking after the previous point, so it never goes back in time.
+  // A live walk keeps up with the real clock; a replayed walk stays on its own simulated clock.
+  const moveLocation = api.moveLocation && journey ? (latitude, longitude) => perform(async () => {
+    const last = journey.track?.at(-1)?.timestamp
+    const next = last ? new Date(last).getTime() + 60000 : Date.now()
+    const live = Math.abs(Date.now() - next) < 6 * 60 * 60 * 1000
+    const time = live ? Math.max(Date.now(), next) : next
+    await api.moveLocation(journey.id, latitude, longitude, new Date(time).toISOString())
+  }, 'The new location didn’t save. Try again.') : null
+
   async function sendReminder(text) {
     try {
       await api.sendReminder(text)
@@ -372,7 +382,7 @@ export default function BackendDemo({ family, circle = null, account = null, onA
         <CaregiverDashboard calendar={circle ? null : calendar} loaded={Boolean(data)} helpRequests={openHelp} feed={data?.activity ?? []} feedJourney={data?.feedJourney ?? null}
           onAcknowledge={api.acknowledgeAlert ? acknowledgeAlert : null} helpTitle={helpTitle} journey={journey}
           reminder={reminder} sender={sender} recipient={recipient} openDemo={!circle} showCareTasks={!circle || Boolean(recipient)}
-          can={api.can} onSendReminder={sendReminder} reminderDraft={reminderDraft} onReminderDraft={setReminderDraft}
+          can={api.can} onSendReminder={sendReminder} onMoveLocation={moveLocation} reminderDraft={reminderDraft} onReminderDraft={setReminderDraft}
           hiddenFeed={hiddenFeed} onHideFeed={hideFeedEntry} onRestoreFeed={restoreFeedEntry} />
       ) : (
         <TodayScreen checkIn={checkIn} journey={journey} help={helpSent ? help : null} reminder={reminder} sender={sender}
@@ -380,7 +390,7 @@ export default function BackendDemo({ family, circle = null, account = null, onA
           viewerIsRecipient={viewerIsRecipient} caregiver={caregiver} helpLabel={helpLabel} confirmation={confirmation}
           options={options} busy={busy} controlsUnavailable={controlsUnavailable}
           canTravel={api.can('start_journey')} canHelp={canHelp} chat={canChat ? chat : null}
-          onKeepGoing={keepGoing} onAskForHelp={requestHelp} onStart={startJourney} onEnd={endJourney}
+          onKeepGoing={keepGoing} onAskForHelp={requestHelp} onStart={startJourney} onEnd={endJourney} onMoveLocation={moveLocation}
           remindersRef={remindersHeading} journeyRef={journeyHeading} detailsRef={journeyDetails} />
       )}
     </Shell>

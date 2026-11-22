@@ -4,36 +4,44 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>A Lark in the Park</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
 /* Based on Artem's live map page, cut down to the four rules in app/risk.py. */
 :root{
-  --bg:#f2f5f7; --surface:#fff; --ink:#15212b; --muted:#5b6b78; --line:#d9e1e7; --grid:#e8eef2;
-  --accent:#2f5d86; --zone:#2e8b57;
-  --low:#2e8b57; --low-bg:#e3f3ea; --med:#b7791f; --med-bg:#fbf0dc; --high:#c2412d; --high-bg:#fbe5e1;
-  --crit:#8e1b5a; --crit-bg:#f7e1ee;
-  --f-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
-  --f-body:"Figtree",system-ui,-apple-system,sans-serif;
+  /* Golden Hour, same as the dashboards: cream and ink, plum (purple) for selection, rose for actions. */
+  --bg:#FFF6E8; --surface:#fff; --ink:#3B2B45; --muted:#5B4A6E; --line:#EDD3AA; --grid:#FDE9C4;
+  --accent:#6E5683; --accent-soft:#EFE6F3; --rose:#A8435A; --rose-deep:#8E3549; --sand:#FDE9C4; --zone:#6B7F6A;
+  --low:#3D6B47; --low-bg:#E5F0E1; --med:#8A5410; --med-bg:#FDECC8; --high:#A8352A; --high-bg:#FBE2DA;
+  --crit:#7A2E6B; --crit-bg:#F3E1F0;
+  --shadow:0 1px 2px rgba(59,43,69,.05),0 8px 24px rgba(110,86,131,.10);
+  --f-display:"Atkinson Hyperlegible Next","Segoe UI",system-ui,sans-serif;
+  --f-body:"Atkinson Hyperlegible Next",system-ui,-apple-system,sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
 }
 @media (prefers-color-scheme: dark){:root{
-  --bg:#0f161c; --surface:#16212a; --ink:#e4ecf2; --muted:#93a4b2; --line:#26343f; --grid:#1c2932;
-  --accent:#7fb2e0; --zone:#5cc28a;
-  --low:#5cc28a; --low-bg:#173326; --med:#e0a84a; --med-bg:#3a2c14; --high:#f0735e; --high-bg:#3f1e19;
-  --crit:#f08bc0; --crit-bg:#3d1a2e; color-scheme:dark}}
+  /* Evening: deep plum instead of blue-black. */
+  --bg:#1F1726; --surface:#2A2033; --ink:#F6EDF5; --muted:#CBB9D4; --line:#45364F; --grid:#33283D;
+  --accent:#C9A7E2; --accent-soft:#3A2D46; --rose:#F08BA0; --rose-deep:#F5A3B4; --sand:#3A2D46; --zone:#9DB59B;
+  --low:#9ED3A2; --low-bg:#203A27; --med:#F2C46B; --med-bg:#3D2E12; --high:#FF9C8A; --high-bg:#45201B;
+  --crit:#F2A6DD; --crit-bg:#3D1C36; --shadow:0 8px 24px rgba(0,0,0,.35); color-scheme:dark}}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 var(--f-body)}
 .wrap{max-width:1280px;margin:0 auto;padding:22px 16px 40px;display:grid;gap:16px}
 h1,h2{font-family:var(--f-display);margin:0}
-h1{font-size:clamp(24px,3.4vw,32px)}
-h2{font-size:16px}
+h1{font-size:clamp(26px,3.4vw,34px);letter-spacing:-.3px}
+h2{font-size:18px}
 a{color:var(--accent)}
 .eyebrow{font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;min-width:0}
-.btn{all:unset;cursor:pointer;border:1px solid var(--line);border-radius:8px;padding:5px 12px;font-size:13px;font-weight:600;text-align:center}
-.btn:hover{border-color:var(--accent)} .btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.btn[aria-pressed="true"],.btn.primary{background:var(--accent);color:var(--surface);border-color:var(--accent)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);min-width:0}
+.btn{all:unset;box-sizing:border-box;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:40px;
+  border:2px solid var(--line);border-radius:999px;padding:6px 16px;font-size:14px;font-weight:700;text-align:center;background:var(--surface);
+  transition:background-color .2s,border-color .2s,transform .15s}
+.btn:hover{border-color:var(--accent);background:var(--accent-soft)} .btn:active{transform:translateY(1px)}
+.btn:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.btn[aria-pressed="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.primary{background:var(--rose);color:#fff;border-color:var(--rose-deep);box-shadow:0 3px 0 var(--rose-deep)}
+.btn.primary:hover{background:var(--rose-deep)}
 .btn.help{color:var(--high);border-color:var(--high)}
 select{font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
 
@@ -56,27 +64,29 @@ select{font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--line);
 .fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:end}
 @media(max-width:900px){.fields{grid-template-columns:1fr}}
 .field{display:grid;gap:4px;min-width:0}
-.field label{font-size:12px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:6px}
-.pin{display:inline-block;padding:2px 7px;border-radius:5px;font:700 11px/1.4 var(--f-body);letter-spacing:.06em;color:#fff}
-.pin.a{background:#2f5d86} .pin.b{background:#c2412d}
+.field label{font-size:14px;font-weight:700;color:var(--ink);display:flex;align-items:center;gap:8px}
+.pin{display:inline-block;padding:3px 10px;border-radius:999px;font:700 12px/1.4 var(--f-body);letter-spacing:.06em;color:#fff}
+.pin.a{background:#6E5683} .pin.b{background:#A8435A}
 .inrow{display:flex;gap:6px}
 .inrow input{flex:1;min-width:0}
-input[type=text]{font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
-input[type=text]:focus{outline:2px solid var(--accent);outline-offset:-1px}
+input[type=text]{font:inherit;font-size:16px;min-height:46px;padding:10px 14px;border:2px solid var(--line);border-radius:14px;background:var(--bg);color:var(--ink);box-sizing:border-box;width:100%}
+input[type=text]::placeholder{color:var(--muted);opacity:.85}
+input[type=text]:hover{border-color:#C9B4D3}
+input[type=text]:focus{outline:none;border-color:var(--accent);background:var(--surface);box-shadow:0 0 0 4px rgba(110,86,131,.18)}
 .routeinfo{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13.5px}
 .hint{font-size:12.5px;color:var(--muted)}
-.warnbox{background:var(--med-bg);color:var(--med);border-radius:8px;padding:6px 10px;font-size:13px}
-.chip{font-size:12.5px;padding:3px 9px;border-radius:99px;background:var(--low-bg);color:var(--low)}
+.warnbox{background:var(--med-bg);color:var(--med);border-radius:12px;padding:6px 12px;font-size:14px}
+.chip{font-size:13px;font-weight:700;padding:4px 12px;border-radius:99px;background:var(--accent-soft);color:var(--accent)}
 .chip.warn{background:var(--med-bg);color:var(--med)}
 
 /* scenarios */
 .picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}
-.sc{all:unset;cursor:pointer;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:3px;align-content:start}
-.sc:hover{border-color:var(--accent)} .sc:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.sc[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.sc{all:unset;cursor:pointer;background:var(--surface);border:2px solid var(--line);border-radius:16px;padding:12px 14px;display:grid;gap:4px;align-content:start;transition:border-color .2s,background-color .2s}
+.sc:hover{border-color:var(--accent);background:var(--accent-soft)} .sc:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.sc[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
 .sc b{font-family:var(--f-display);font-size:14.5px}
 .sc small{color:var(--muted);font-size:12px;line-height:1.35}
-.sc .tag{font-family:var(--f-mono);font-size:10.5px;color:var(--accent)}
+.sc .tag{justify-self:start;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:99px;background:var(--sand);color:var(--ink)}
 .sc[disabled]{opacity:.45;cursor:not-allowed}
 .bar{display:flex;flex-wrap:wrap;gap:12px;align-items:center;padding:10px 14px}
 .bar label{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center}
@@ -86,8 +96,8 @@ input[type=text]:focus{outline:2px solid var(--accent);outline-offset:-1px}
 .stage{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;align-items:start}
 @media(max-width:900px){.stage{grid-template-columns:1fr}}
 .mapcard{padding:8px;display:grid;gap:6px}
-#map{width:100%;height:min(68vh,600px);min-height:380px;border-radius:8px;background:var(--grid)}
-#map.armed{outline:3px solid var(--accent);outline-offset:-3px}
+#map{width:100%;height:min(68vh,600px);min-height:380px;border-radius:14px;background:var(--grid)}
+#map.armed{outline:4px solid var(--accent);outline-offset:-4px}
 .legend{display:flex;flex-wrap:wrap;gap:4px 14px;padding:2px 6px;font-size:12px;color:var(--muted)}
 .legend span:not(:last-child)::after{content:"·";margin-left:14px}
 .mapmsg{display:grid;place-items:center;height:100%;padding:24px;text-align:center;color:var(--muted)}
@@ -95,7 +105,7 @@ input[type=text]:focus{outline:2px solid var(--accent);outline-offset:-1px}
 .scoreline{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
 .score{font-family:var(--f-display);font-size:58px;line-height:.9;font-weight:700;font-variant-numeric:tabular-nums}
 .score small{font-size:16px;color:var(--muted);font-weight:500}
-.lvl{font-family:var(--f-mono);font-size:12.5px;padding:3px 9px;border-radius:6px;text-transform:uppercase;letter-spacing:.06em}
+.lvl{font-size:13px;font-weight:700;padding:4px 12px;border-radius:99px;text-transform:uppercase;letter-spacing:.06em}
 .lvl.low{background:var(--low-bg);color:var(--low)} .lvl.medium{background:var(--med-bg);color:var(--med)} .lvl.high{background:var(--high-bg);color:var(--high)}
 .reasons{margin:0;padding:0;list-style:none;display:grid;gap:6px}
 .reasons li{display:grid;grid-template-columns:44px 1fr;gap:8px;font-size:13.5px}
@@ -111,7 +121,7 @@ dl.stats dd{margin:0;font-family:var(--f-mono);font-size:14px}
 .bottom{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:16px;align-items:start}
 @media(max-width:900px){.bottom{grid-template-columns:1fr}}
 .phone,.feed{padding:16px;display:grid;gap:10px}
-.screen{border:1px solid var(--line);border-radius:22px;padding:16px;min-height:170px;display:grid;gap:10px;align-content:start;background:var(--bg)}
+.screen{border:2px solid var(--line);border-radius:28px;padding:16px;min-height:170px;display:grid;gap:10px;align-content:start;background:var(--bg)}
 .bubble{background:var(--surface);border:1px solid var(--line);border-radius:14px 14px 14px 4px;padding:10px 12px;font-size:14px}
 .opts{display:flex;flex-wrap:wrap;gap:6px}
 .opts .btn{font-weight:500;background:var(--surface)}
@@ -132,7 +142,7 @@ dl.stats dd{margin:0;font-family:var(--f-mono);font-size:14px}
 .visit .opts .btn{font-size:15px;padding:9px 16px}
 .visit .opts .btn.primary{background:var(--accent);color:var(--surface);border-color:var(--accent)}
 #events{list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:420px;overflow:auto}
-#events li{border:1px solid var(--line);border-radius:10px;padding:9px 12px;display:grid;gap:4px;font-size:13.5px}
+#events li{border:1px solid var(--line);border-radius:14px;padding:10px 14px;display:grid;gap:4px;font-size:14px;background:var(--bg)}
 .evtype{font-family:var(--f-mono);font-size:11.5px;padding:2px 7px;border-radius:5px;justify-self:start}
 .evtype.alert{background:var(--high-bg);color:var(--high)} .evtype.crit{background:var(--crit-bg);color:var(--crit)}
 .evtype.chk{background:var(--med-bg);color:var(--med)} .evtype.ok{background:var(--low-bg);color:var(--low)}
@@ -144,42 +154,89 @@ html.embed,html.embed body{height:100%;margin:0;background:transparent}
 .embed .stage{display:block;height:100%}
 .embed .mapcard{display:block;height:100%;padding:0;border:0;border-radius:0}
 .embed #map{height:100%;min-height:0;border-radius:0}
+/* Embedded in a dashboard: a light apricot wash warms the map without hiding streets. */
+.embed .mapcard{position:relative}
+.embed .mapcard::after{content:"";position:absolute;inset:0;pointer-events:none;background:#FFD9A0;mix-blend-mode:multiply;opacity:.16}
+
+/* header: the one purple hero band */
+.hero{position:relative;overflow:hidden;isolation:isolate;padding:22px 24px;border-radius:24px;color:#fff;
+  background:linear-gradient(135deg,#6E5683 0%,#8C4A6C 60%,#A8435A 100%);box-shadow:0 16px 36px rgba(110,86,131,.28)}
+.hero::after{content:"";position:absolute;z-index:-1;right:-60px;top:-90px;width:260px;height:260px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,228,160,.55),rgba(255,228,160,0) 70%)}
+.hero h1{display:flex;align-items:center;gap:12px;color:#fff}
+.hero .mark{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:rgba(255,255,255,.18)}
+
+/* From / To planner, like a maps app: two stops joined by a dotted line, with a swap button */
+.route-fields{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:6px 10px;align-items:center}
+.stop-dot{grid-column:1;justify-self:center;align-self:end;margin-bottom:14px;width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 0 0 2px var(--line)}
+.stop-dot.a{background:#6E5683} .stop-dot.b{background:#A8435A;border-radius:50% 50% 50% 0;transform:rotate(-45deg)}
+.stop-line{grid-column:1;justify-self:center;width:0;height:22px;border-left:3px dotted var(--accent)}
+.route-fields .field{grid-column:2}
+.swap{grid-column:3;grid-row:1 / span 3;align-self:center;width:44px;height:44px;padding:0;font-size:20px}
+.inrow{display:flex;gap:8px;align-items:stretch}
+.combo{position:relative;flex:1;min-width:0}
+.suggest{position:absolute;z-index:30;left:0;right:0;top:calc(100% + 6px);margin:0;padding:6px;list-style:none;
+  background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 40px rgba(59,43,69,.22);max-height:320px;overflow:auto}
+.suggest[hidden]{display:none}
+.suggest [role=option]{display:grid;grid-template-columns:30px minmax(0,1fr);gap:2px 10px;align-items:center;padding:9px 10px;border-radius:12px;cursor:pointer}
+.suggest [role=option]::before{content:"";grid-row:1 / span 2;width:30px;height:30px;border-radius:10px;
+  background:var(--accent-soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236E5683' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z'/%3E%3Ccircle cx='12' cy='10' r='2.5'/%3E%3C/svg%3E") center/18px no-repeat}
+.suggest [role=option] b{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.suggest [role=option] span{font-size:13.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.suggest [role=option][aria-selected="true"],.suggest [role=option]:hover{background:var(--accent-soft)}
+.suggest .note{padding:8px 10px;color:var(--muted);font-size:14px}
+.suggest .credit{padding:6px 10px 2px;color:var(--muted);font-size:12px;border-top:1px solid var(--line);margin-top:4px}
+@media(max-width:600px){.inrow{flex-wrap:wrap}.inrow .combo{flex:1 1 100%}.inrow .btn{flex:1}}
+
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important;scroll-behavior:auto!important}}
 
 /* map markers */
 /* big text labels with a pointer underneath, so HOME and DESTINATION are obvious */
-.mk{position:relative;margin-bottom:9px;padding:7px 12px;border-radius:8px;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.4);
+.mk{position:relative;margin-bottom:9px;padding:8px 14px;border-radius:999px;border:2px solid #FFF6E8;box-shadow:0 4px 14px rgba(59,43,69,.3);max-width:220px;overflow:hidden;text-overflow:ellipsis;
   font:700 15px/1 var(--f-body);letter-spacing:.08em;color:#fff;white-space:nowrap}
 .mk::after{content:"";position:absolute;left:50%;bottom:-9px;transform:translateX(-50%);border:7px solid transparent;border-bottom:0}
-.mk.a{background:#2f5d86} .mk.a::after{border-top-color:#2f5d86}
-.mk.b{background:#c2412d} .mk.b::after{border-top-color:#c2412d}
-.me{width:18px;height:18px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.45);transform:translateY(50%)}
+.mk.a{background:#6E5683} .mk.a::after{border-top-color:#6E5683}
+.mk.b{background:#A8435A} .mk.b::after{border-top-color:#A8435A}
+.me{width:18px;height:18px;border-radius:50%;border:3px solid #FFF6E8;box-shadow:0 0 0 7px rgba(240,176,79,.35),0 2px 6px rgba(59,43,69,.35);transform:translateY(50%)}
 .pac-container{z-index:10000;font-family:var(--f-body)}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <h1>A Lark in the Park</h1>
+  <header class="hero">
+    <h1><span class="mark" aria-hidden="true"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg></span>A Lark in the Park</h1>
   </header>
 
   <section class="card planner" aria-label="Plan the walk">
-    <div class="fields">
+    <div class="route-fields">
+      <span class="stop-dot a" aria-hidden="true"></span>
       <div class="field">
-        <label for="in-start"><span class="pin a">HOME</span>Where the walk starts</label>
+        <label for="in-start"><span class="pin a">FROM</span>Where the walk starts</label>
         <div class="inrow">
-          <input type="text" id="in-start" placeholder="Search a place in Montreal" autocomplete="off">
-          <button class="btn" type="button" data-arm="start">Pick on map</button>
+          <div class="combo">
+            <input type="text" id="in-start" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sug-start"
+              placeholder="Type a place or address in Montreal" autocomplete="off" spellcheck="false">
+            <ul class="suggest" id="sug-start" role="listbox" aria-label="Start suggestions" hidden></ul>
+          </div>
+          <button class="btn" type="button" data-arm="start" aria-pressed="false">Pick on map</button>
         </div>
       </div>
+      <button class="btn swap" id="swap" type="button" aria-label="Swap start and destination" title="Swap start and destination">&#8645;</button>
+      <span class="stop-line" aria-hidden="true"></span>
+      <span class="stop-dot b" aria-hidden="true"></span>
       <div class="field">
-        <label for="in-dest"><span class="pin b">DESTINATION</span>Where she is going</label>
+        <label for="in-dest"><span class="pin b">TO</span>Where she is going</label>
         <div class="inrow">
-          <input type="text" id="in-dest" placeholder="Search a place in Montreal" autocomplete="off">
-          <button class="btn" type="button" data-arm="dest">Pick on map</button>
+          <div class="combo">
+            <input type="text" id="in-dest" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sug-dest"
+              placeholder="Type a place or address in Montreal" autocomplete="off" spellcheck="false">
+            <ul class="suggest" id="sug-dest" role="listbox" aria-label="Destination suggestions" hidden></ul>
+          </div>
+          <button class="btn" type="button" data-arm="dest" aria-pressed="false">Pick on map</button>
         </div>
       </div>
     </div>
-    <div class="routeinfo" id="routeinfo"><span class="hint">Choose a start and a destination to get the walking route.</span></div>
+    <div class="routeinfo" id="routeinfo" aria-live="polite"><span class="hint">Choose a start and a destination to get the walking route.</span></div>
   </section>
 
   <section class="stage">
@@ -399,7 +456,7 @@ function loadGoogle(key) {
       mapFailed(message);
     };
     const s = document.createElement("script");
-    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&language=en&region=CA&libraries=${ATTACH ? "marker" : "places,marker"}&loading=async&callback=__gmReady`;
+    s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&v=weekly&language=en&region=CA&libraries=marker&loading=async&callback=__gmReady`;
     s.async = true; s.onerror = () => reject(new Error("Could not load Google Maps (offline?)."));
     document.head.appendChild(s);
   });
@@ -407,49 +464,37 @@ function loadGoogle(key) {
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const lvlColor = l => css(l === "high" ? "--high" : l === "medium" ? "--med" : "--low");
 const ll = ([lat, lng]) => ({ lat, lng });
-const pinName = (lat, lng) => `Pin ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+const pinName = (lat, lng) => `Pinned spot (${lat.toFixed(4)}, ${lng.toFixed(4)})`;
 function pinEl(cls, text) { const d = document.createElement("div"); d.className = "mk " + cls; d.textContent = text; return d; }
 
 async function initMap() {
   const { Map } = await google.maps.importLibrary("maps");
   ({ AdvancedMarkerElement: Adv } = await google.maps.importLibrary("marker"));
-  if (!ATTACH) await google.maps.importLibrary("places");
   $("map").innerHTML = "";
   map = new Map($("map"), {
     center: { lat: 45.5019, lng: -73.5674 }, zoom: 14,
     // Raster rendering: vector maps cap polyline width, which would hide the distance bands.
-    mapId: "DEMO_MAP_ID", renderingType: "RASTER", colorScheme: "FOLLOW_SYSTEM",
+    mapId: "DEMO_MAP_ID", renderingType: "RASTER", colorScheme: EMBED ? "LIGHT" : "FOLLOW_SYSTEM",
     mapTypeControl: false, streetViewControl: false, clickableIcons: false,
   });
   // Distance bands around the route: 300 m, 150 m and 50 m either side (the off-route rule).
   mk.bands = [[300, .08], [150, .12], [50, .25]].map(([m, op]) => ({ m,
-    line: new google.maps.Polyline({ map, strokeColor: "#2f5d86", strokeOpacity: op, strokeWeight: 1, zIndex: 1, clickable: false }) }));
-  mk.route = new google.maps.Polyline({ map, strokeColor: "#2f5d86", strokeOpacity: .95, strokeWeight: 5, zIndex: 2, clickable: false });
-  mk.zones = ["start", "dest"].map(() => new google.maps.Circle({ map, radius: SAFE_ZONE_M, strokeColor: "#2e8b57", strokeWeight: 2, fillColor: "#2e8b57", fillOpacity: .15, clickable: false, visible: false }));
-  mk.start = new Adv({ content: pinEl("a", "HOME"), gmpDraggable: !ATTACH, title: ATTACH ? "Start" : "Home (drag to move)", zIndex: 50 });
-  mk.dest = new Adv({ content: pinEl("b", "DESTINATION"), gmpDraggable: !ATTACH, title: ATTACH ? "Destination" : "Destination (drag to move)", zIndex: 50 });
+    line: new google.maps.Polyline({ map, strokeColor: "#6E5683", strokeOpacity: op, strokeWeight: 1, zIndex: 1, clickable: false }) }));
+  mk.route = new google.maps.Polyline({ map, strokeColor: "#6E5683", strokeOpacity: .9, strokeWeight: 5, zIndex: 2, clickable: false });
+  mk.zones = ["start", "dest"].map(() => new google.maps.Circle({ map, radius: SAFE_ZONE_M, strokeColor: "#6B7F6A", strokeWeight: 2, fillColor: "#6B7F6A", fillOpacity: .12, clickable: false, visible: false }));
+  mk.start = new Adv({ content: pinEl("a", "FROM"), gmpDraggable: !ATTACH, title: ATTACH ? "Start" : "Start (drag to move)", zIndex: 50 });
+  mk.dest = new Adv({ content: pinEl("b", "TO"), gmpDraggable: !ATTACH, title: ATTACH ? "Destination" : "Destination (drag to move)", zIndex: 50 });
   for (const which of ["start", "dest"]) mk[which].addListener("dragend", () => {
     const p = mk[which].position, lat = typeof p.lat === "function" ? p.lat() : p.lat, lng = typeof p.lng === "function" ? p.lng() : p.lng;
-    setPlace(which, { name: pinName(lat, lng), lat, lng });
+    pinPlace(which, lat, lng);
   });
   map.addListener("zoom_changed", sizeBands);
   map.addListener("click", e => {
     const lat = e.latLng.lat(), lng = e.latLng.lng();
-    if (armed) { setPlace(armed, { name: pinName(lat, lng), lat, lng }); arm(null); }
+    if (armed) { pinPlace(armed, lat, lng); arm(null); }
     else if (manual) moveTo([lat, lng], MINUTES_PER_CLICK);
+    else if (EMBED && embedMovable) tellMove(lat, lng);
   });
-  for (const which of ATTACH ? [] : ["start", "dest"]) {
-    const input = $(which === "start" ? "in-start" : "in-dest");
-    const ac = new google.maps.places.Autocomplete(input, {
-      bounds: MTL_BOUNDS, strictBounds: true, componentRestrictions: { country: "ca" }, fields: ["name", "geometry", "formatted_address"],
-    });
-    ac.addListener("place_changed", () => {
-      const p = ac.getPlace();
-      if (!p.geometry?.location) { $("routeinfo").innerHTML = `<span class="warnbox">Pick a suggestion from the list.</span>`; return; }
-      setPlace(which, { name: p.name || p.formatted_address, lat: p.geometry.location.lat(), lng: p.geometry.location.lng() });
-    });
-    input.addEventListener("keydown", e => { if (e.key === "Enter") e.preventDefault(); });
-  }
 }
 function sizeBands() {           // a band of m metres either side = 2m metres wide, converted to pixels
   if (!map || !ROUTE) return;
@@ -460,10 +505,109 @@ function arm(which) {
   armed = which && armed !== which ? which : null;
   document.querySelectorAll("[data-arm]").forEach(b => b.setAttribute("aria-pressed", b.dataset.arm === armed));
   $("map").classList.toggle("armed", !!armed);
-  if (armed) $("routeinfo").innerHTML = `<span class="hint">Click the map to set <b>${armed === "start" ? "HOME" : "DESTINATION"}</b>.</span>`;
+  if (armed) $("routeinfo").innerHTML = `<span class="hint">Click the map to set <b>${armed === "start" ? "FROM (start)" : "TO (destination)"}</b>.</span>`;
+}
+
+/* ---------------- typing a place ----------------
+   Google retired the old Places Autocomplete for new projects, so the boxes ask the backend,
+   which uses Google Places (New) when the key allows it, or OpenStreetMap. */
+function searchNear() {
+  const c = map?.getCenter?.();
+  if (c) return { lat: c.lat().toFixed(5), lng: c.lng().toFixed(5) };
+  const p = place.start || place.dest || DEFAULT_HOME;
+  return { lat: p.lat.toFixed(5), lng: p.lng.toFixed(5) };
+}
+function placeBox(which) {
+  const input = $(which === "start" ? "in-start" : "in-dest");
+  const list = $(which === "start" ? "sug-start" : "sug-dest");
+  let items = [], active = -1, timer = null, seq = 0, shownSource = null;
+  const optId = i => `${list.id}-${i}`;
+  function close() {
+    list.hidden = true; input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); active = -1;
+  }
+  function note(text) {
+    items = []; active = -1;
+    list.innerHTML = `<li class="note" role="presentation">${esc(text)}</li>`;
+    list.hidden = false; input.setAttribute("aria-expanded", "true"); input.removeAttribute("aria-activedescendant");
+  }
+  function render(source = shownSource) {
+    shownSource = source;
+    if (!items.length) return note("No places found. Try a street address, or use “Pick on map”.");
+    const credit = source === "openstreetmap" ? "Search by OpenStreetMap © contributors" : "Search by Google";
+    list.innerHTML = items.map((p, i) =>
+      `<li role="option" id="${optId(i)}" data-i="${i}" aria-selected="${i === active}"><b>${esc(p.name)}</b><span>${esc(p.address || "Montreal")}</span></li>`
+    ).join("") + `<li class="credit" role="presentation">${credit}</li>`;
+    list.hidden = false; input.setAttribute("aria-expanded", "true");
+    if (active >= 0) input.setAttribute("aria-activedescendant", optId(active)); else input.removeAttribute("aria-activedescendant");
+  }
+  function highlight(i) {
+    active = (i + items.length) % items.length;
+    list.querySelectorAll("[role=option]").forEach((li, n) => li.setAttribute("aria-selected", n === active));
+    input.setAttribute("aria-activedescendant", optId(active));
+    list.querySelector(`#${optId(active)}`)?.scrollIntoView({ block: "nearest" });
+  }
+  function choose(i) {
+    const p = items[i]; if (!p) return;
+    close(); setPlace(which, { name: p.name, lat: p.latitude, lng: p.longitude });
+  }
+  async function search(q) {
+    const mine = ++seq;
+    note("Searching…");
+    try {
+      const r = await fetch(`${API}/places/search?` + new URLSearchParams({ q, ...searchNear() }));
+      const j = await r.json().catch(() => ({}));
+      if (mine !== seq) return;
+      if (!r.ok) throw new Error(j.error?.message || "Search didn’t work. Try again.");
+      items = j.results || []; active = items.length ? 0 : -1; render(j.source);
+    } catch (e) {
+      if (mine === seq) note(e.message || "Search didn’t work. Try again.");
+    }
+  }
+  input.addEventListener("input", () => {
+    clearTimeout(timer); seq++;
+    const q = input.value.trim();
+    if (q.length < 2) { items = []; close(); return; }
+    // Old suggestions go away at once, so Enter can never pick a result for earlier text.
+    note("Searching…");
+    timer = setTimeout(() => search(q), 250);
+  });
+  input.addEventListener("keydown", e => {
+    if (e.key === "ArrowDown" && items.length) { e.preventDefault(); if (list.hidden) render(); highlight(active + 1); }
+    else if (e.key === "ArrowUp" && items.length) { e.preventDefault(); highlight(active - 1); }
+    else if (e.key === "Enter") { e.preventDefault(); if (items.length && !list.hidden) choose(active >= 0 ? active : 0); }
+    else if (e.key === "Escape" && !list.hidden) { e.preventDefault(); close(); }
+  });
+  // mousedown, not click: picking must happen before the box loses focus and closes the list.
+  list.addEventListener("mousedown", e => {
+    const li = e.target.closest("[role=option]"); if (!li) return;
+    e.preventDefault(); choose(Number(li.dataset.i));
+  });
+  input.addEventListener("focus", () => { if (items.length && input.value.trim().length >= 2) render(); });
+  input.addEventListener("blur", () => setTimeout(close, 120));
+}
+// A spot picked or dropped on the map gets its nearest address as a name.
+async function pinPlace(which, lat, lng) {
+  setPlace(which, { name: pinName(lat, lng), lat, lng });
+  try {
+    const r = await fetch(`${API}/places/reverse?` + new URLSearchParams({ lat, lng }));
+    const j = await r.json();
+    const p = place[which];
+    if (!j.name || !p || p.lat !== lat || p.lng !== lng) return;
+    p.name = j.name;
+    $(which === "start" ? "in-start" : "in-dest").value = j.name;
+    routeSummary(); refreshCards();
+  } catch { /* keep the coordinates as the name */ }
+}
+function swapPlaces() {
+  if (!place.start && !place.dest) return;
+  const { start, dest } = place;
+  place.start = null; place.dest = null;
+  if (dest) setPlace("start", dest); else $("in-start").value = "";
+  if (start) setPlace("dest", start); else $("in-dest").value = "";
 }
 
 /* ---------------- planning ---------------- */
+const moveMapTo = point => matchMedia("(prefers-reduced-motion: reduce)").matches ? map.setCenter(point) : map.panTo(point);
 let planSeq = 0;
 function setPlace(which, p) {
   place[which] = p;
@@ -471,7 +615,7 @@ function setPlace(which, p) {
   if (map) { mk[which].position = ll([p.lat, p.lng]); mk[which].map = map; }
   stopWalk(); clearWalk();
   if (place.start && place.dest) plan();
-  else if (map) map.panTo(ll([p.lat, p.lng]));
+  else if (map) moveMapTo(ll([p.lat, p.lng]));
   refreshCards();
 }
 async function plan() {
@@ -491,12 +635,18 @@ async function plan() {
   }
 }
 function drawRoute() {
-  const path = ROUTE.points.map(ll);
-  mk.route.setPath(path); mk.bands.forEach(b => b.line.setPath(path));
-  [place.start, place.dest].forEach((p, i) => { mk.zones[i].setCenter(ll([p.lat, p.lng])); mk.zones[i].setVisible(true); });
-  const bounds = new google.maps.LatLngBounds(); path.forEach(p => bounds.extend(p));
-  map.fitBounds(bounds, EMBED ? 36 : 90);
-  google.maps.event.addListenerOnce(map, "idle", sizeBands); sizeBands();
+  if (map) {
+    const path = ROUTE.points.map(ll);
+    mk.route.setPath(path); mk.bands.forEach(b => b.line.setPath(path));
+    [place.start, place.dest].forEach((p, i) => { mk.zones[i].setCenter(ll([p.lat, p.lng])); mk.zones[i].setVisible(true); });
+    const bounds = new google.maps.LatLngBounds(); path.forEach(p => bounds.extend(p));
+    map.fitBounds(bounds, EMBED ? 36 : 90);
+    google.maps.event.addListenerOnce(map, "idle", sizeBands); sizeBands();
+  }
+  routeSummary();
+}
+function routeSummary() {
+  if (!ROUTE) return;
   const km = (ROUTE.distance_m ?? LEN) / 1000, min = Math.round((ROUTE.duration_s ?? LEN / 1.3) / 60);
   const srcLabel = { google_routes: "Google walking route", predefined: "Demo route", client: "Saved route" }[ROUTE.source];
   const src = srcLabel ? `<span class="chip">${srcLabel}</span>` : `<span class="chip warn">Straight-line fallback</span>`;
@@ -507,8 +657,8 @@ function drawRoute() {
     notes.map(n => `<span class="warnbox">${n}</span>`).join("");
 }
 function refreshCards() {
-  document.querySelectorAll(".sc").forEach(b => { b.disabled = !ROUTE; b.querySelector("small").textContent = SCENARIOS.find(s => s.key === b.dataset.key).blurb(); });
-  $("m-start").disabled = !ROUTE;
+  document.querySelectorAll(".sc").forEach(b => { b.disabled = !ROUTE || !map; b.querySelector("small").textContent = SCENARIOS.find(s => s.key === b.dataset.key).blurb(); });
+  $("m-start").disabled = !ROUTE || !map;
   $("phone-title").textContent = `${walker()}'s phone`;
 }
 
@@ -536,7 +686,7 @@ function drawStep(prevLL, curLL, level) {
   mk.me.content.style.background = lvlColor(level);
   mk.me.position = ll(curLL); mk.me.map = map;
   const bounds = map.getBounds();
-  if (bounds && !bounds.contains(ll(curLL))) map.panTo(ll(curLL));
+  if (bounds && !bounds.contains(ll(curLL))) moveMapTo(ll(curLL));
 }
 function showRisk(risk, minute, metresOff) {
   $("score").innerHTML = `${risk.score}<small>/100</small>`;
@@ -772,13 +922,36 @@ function drawTrack(j) {
   if (latest) { drawStep(null, latest, j.risk.level); $("map").dataset.latest = latest.join(","); }
   else if (mk.me) mk.me.map = null;
 }
+// Embedded demo dashboards can let people move the walker: the dashboard saves the point.
+let embedMovable = false, meDragHooked = false;
+function tellMove(latitude, longitude) {
+  parent.postMessage({ type: "whats-next-map", status: "move", journey: JOURNEY_PARAM, latitude, longitude }, location.origin);
+}
+function setEmbedMovable(on) {
+  embedMovable = on;
+  if (map) map.setOptions({ draggableCursor: on ? "crosshair" : null });
+  if (!mk.me) return;
+  mk.me.gmpDraggable = on;
+  mk.me.title = on ? "Current position · drag to move" : "Current position";
+  if (!meDragHooked) {
+    meDragHooked = true;
+    mk.me.addListener("dragend", () => {
+      if (!embedMovable) return;
+      const p = mk.me.position, lat = typeof p.lat === "function" ? p.lat() : p.lat, lng = typeof p.lng === "function" ? p.lng() : p.lng;
+      tellMove(lat, lng);
+    });
+  }
+}
 function startEmbed() {
   attachedId = JOURNEY_PARAM;
   $("map").dataset.journey = attachedId;
   // The dashboard sends only the journey its own access check already allowed.
   addEventListener("message", e => {
     if (e.origin !== location.origin || e.source !== parent) return;
-    if (e.data?.type === "whats-next-journey" && e.data.journey?.id === attachedId) showJourney(e.data.journey);
+    if (e.data?.type === "whats-next-journey" && e.data.journey?.id === attachedId) {
+      showJourney(e.data.journey);
+      setEmbedMovable(Boolean(e.data.movable));
+    }
   });
   tellParent("ready");
 }
@@ -791,7 +964,7 @@ async function attachJourney() {
   } else j = await getJourney(JOURNEY_PARAM);
   attachedId = j.id;
   $("map").dataset.journey = j.id;
-  document.querySelectorAll("#in-start,#in-dest,[data-arm]").forEach(el => { el.disabled = true; });
+  document.querySelectorAll("#in-start,#in-dest,#swap,[data-arm]").forEach(el => { el.disabled = true; });
   showJourney(j);
   $("status").innerHTML = `Following journey <b class="mono">${esc(j.id)}</b>. Pick a scenario to send simulated GPS points.`;
 }
@@ -804,6 +977,7 @@ SCENARIOS.forEach(sc => {
   $("picker").appendChild(b);
 });
 document.querySelectorAll("[data-arm]").forEach(b => b.onclick = () => arm(b.dataset.arm));
+if (!ATTACH) { placeBox("start"); placeBox("dest"); $("swap").onclick = swapPlaces; }
 $("stop").onclick = () => { stopWalk(); $("status").textContent = "Stopped."; };
 $("m-start").onclick = () => startManual().catch(e => { $("status").textContent = "Error: " + (e.message || JSON.stringify(e)); });
 $("m-stay").onclick = () => walk?.last && moveTo(walk.last, MINUTES_PER_CLICK);
@@ -831,6 +1005,8 @@ $("m-finish").onclick = async () => {
     }
   } catch (e) {
     mapFailed(e.message);
+    // Typing places and planning the route still work without the Google map.
+    if (!ATTACH && !place.start && !place.dest) { setPlace("start", DEFAULT_HOME); setPlace("dest", DEFAULT_DEST); }
   }
   refreshCards();
 })();

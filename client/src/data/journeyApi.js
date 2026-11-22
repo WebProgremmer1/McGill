@@ -144,6 +144,11 @@ export function createJourneyApi(circle = null) {
     // Demo only. Circle conversations have no clear route.
     clearChat: circle ? null : () => request('/demo/messages/clear', { method: 'POST' }),
 
+    // Demo only: moves the walker by posting one GPS point. Circles have no location route.
+    moveLocation: circle ? null : (journeyId, latitude, longitude, timestamp) => postJson(
+      `/journeys/${encodeURIComponent(journeyId)}/location`, { latitude, longitude, timestamp },
+    ),
+
     async sendReminder(message) {
       if (circle) {
         return request(`${base}/reminder`, {
