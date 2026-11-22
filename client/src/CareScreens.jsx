@@ -210,27 +210,6 @@ export function TodayScreen({
   const eventFirst = calendar?.state === 'ok'
   return (
     <div className="today-view">
-      <section className="today-section message-card" aria-labelledby="reminders-title">
-        <SectionHeading id="reminders-title" icon="calendar" headingRef={remindersRef}>Reminders</SectionHeading>
-        {eventFirst && calendarCard}
-        {reminder ? (
-          <article className="sender-reminder">
-            <div className="reminder-from">
-              {sender && <Portrait person={sender} />}
-              <p>{sender ? senderLine : 'From your caregiver'}</p>
-            </div>
-            <p className="reminder-message">{reminder}{sender ? ` — ${firstName(sender)}` : ''}</p>
-          </article>
-        ) : <p className="reminder-message">No messages yet</p>}
-        {!eventFirst && calendarCard}
-      </section>
-      <PatientActions caregiverName={caregiverName} canMessage={canMessage} canHelp={canHelp} helpLabel={helpLabel}
-        busy={busy} onHelp={onAskForHelp} onSendMessage={onSendMessage} />
-      <div className="today-confirmation-wrap">
-        <p className="response today-confirmation" role="status">{confirmation}</p>
-        <p className="email-status" role="status">{help ? patientEmailText[help.email_status] ?? '' : ''}</p>
-        {help && <CallLink person={caregiver} />}
-      </div>
       {checkIn && (
         <section className="check-in" aria-labelledby="check-in-title">
           <h2 id="check-in-title">{question}</h2>
@@ -245,6 +224,29 @@ export function TodayScreen({
           </div>
         </section>
       )}
+      <div className="today-side">
+        <section className="today-section message-card" aria-labelledby="reminders-title">
+          <SectionHeading id="reminders-title" icon="calendar" headingRef={remindersRef}>Reminders</SectionHeading>
+          {eventFirst && calendarCard}
+          {reminder ? (
+            <article className="sender-reminder">
+              <div className="reminder-from">
+                {sender && <Portrait person={sender} />}
+                <p>{sender ? senderLine : 'From your caregiver'}</p>
+              </div>
+              <p className="reminder-message">{reminder}{sender ? ` — ${firstName(sender)}` : ''}</p>
+            </article>
+          ) : <p className="reminder-message">No messages yet</p>}
+          {!eventFirst && calendarCard}
+        </section>
+        <PatientActions caregiverName={caregiverName} canMessage={canMessage} canHelp={canHelp} helpLabel={helpLabel}
+          busy={busy} onHelp={onAskForHelp} onSendMessage={onSendMessage} />
+        <div className="today-confirmation-wrap">
+          <p className="response today-confirmation" role="status">{confirmation}</p>
+          <p className="email-status" role="status">{help ? patientEmailText[help.email_status] ?? '' : ''}</p>
+          {help && <CallLink person={caregiver} />}
+        </div>
+      </div>
       <TodayJourney journey={journey} openDemo={openDemo} options={options} canTravel={canTravel} busy={busy}
         onStart={onStart} onEnd={onEnd} headingRef={journeyRef} detailsRef={detailsRef} />
     </div>
@@ -431,58 +433,62 @@ export function CaregiverDashboard({
         </div>
         {recipient && <CallLink person={recipient} />}
       </section>
-      {(canRemind || showCalendar) && (
-        <div className={canRemind && showCalendar ? 'care-top-row wide' : 'care-top-row care-top-row-single wide'}>
-          {canRemind && <ReminderForm recipient={recipient} latest={reminder} sender={sender} onSend={onSendReminder} />}
-          {showCalendar && (
-            <section className="panel care-calendar-panel" aria-labelledby="care-calendar-title">
-              <SectionHeading id="care-calendar-title" icon="calendar">Next on your calendar</SectionHeading>
-              <CalendarReminder calendar={calendar} care />
-            </section>
-          )}
-        </div>
-      )}
-      {showCareTasks && can('read_help') && (
-        <section className={helpRequests.length ? 'panel wide help-panel has-request' : 'panel wide help-panel'} data-journey-id={onlyHelp?.alert.journey_id} aria-labelledby="help-title">
-          <h2 id="help-title" className="icon-heading"><Icon name="help" />{helpRequests.length ? helpTitle : 'Help requests'}</h2>
-          {helpRequests.length > 1 ? (
-            <ol className="help-request-list">
-              {helpRequests.map(({ alert, journey: requestJourney }) => (
-                <li key={alert.id} data-alert-id={alert.id} data-journey-id={alert.journey_id}>
-                  <p>{helpDetail(requestJourney)}</p>
-                  <p className="email-status" role="status" data-email-status={alert.email_status}>{careEmailText[alert.email_status] ?? ''}</p>
-                </li>
+      <div className="care-main">
+        {showCareTasks && can('read_help') && (
+          <section className={helpRequests.length ? 'panel wide help-panel has-request' : 'panel wide help-panel'} data-journey-id={onlyHelp?.alert.journey_id} aria-labelledby="help-title">
+            <h2 id="help-title" className="icon-heading"><Icon name="help" />{helpRequests.length ? helpTitle : 'Help requests'}</h2>
+            {helpRequests.length > 1 ? (
+              <ol className="help-request-list">
+                {helpRequests.map(({ alert, journey: requestJourney }) => (
+                  <li key={alert.id} data-alert-id={alert.id} data-journey-id={alert.journey_id}>
+                    <p>{helpDetail(requestJourney)}</p>
+                    <p className="email-status" role="status" data-email-status={alert.email_status}>{careEmailText[alert.email_status] ?? ''}</p>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <>
+                <p>{onlyHelp ? helpDetail(onlyHelp.journey) : loaded ? 'No help requests.' : 'Loading…'}</p>
+                <p className="email-status" role="status" data-email-status={onlyHelp?.alert.email_status}>{onlyHelp ? careEmailText[onlyHelp.alert.email_status] ?? '' : ''}</p>
+              </>
+            )}
+          </section>
+        )}
+        {showCareTasks && can('read_journey') && (
+          <section className="panel wide journey-card" aria-labelledby="family-journey-title">
+            <SectionHeading id="family-journey-title" icon="pin">Journey</SectionHeading>
+            {journey ? <div className="journey-details"><JourneyDetails journey={journey} presenter={openDemo} /></div>
+              : <p className="journey-empty">{loaded ? 'No journey right now.' : 'Loading…'}</p>}
+          </section>
+        )}
+        {showCareTasks && can('read_help') && <CareFeed entries={feed} journey={feedJourney} loaded={loaded} onAcknowledge={onAcknowledge} />}
+      </div>
+      <div className="care-side">
+        {(canRemind || showCalendar) && (
+          <div className={canRemind && showCalendar ? 'care-top-row wide' : 'care-top-row care-top-row-single wide'}>
+            {canRemind && <ReminderForm recipient={recipient} latest={reminder} sender={sender} onSend={onSendReminder} />}
+            {showCalendar && (
+              <section className="panel care-calendar-panel" aria-labelledby="care-calendar-title">
+                <SectionHeading id="care-calendar-title" icon="calendar">Next on your calendar</SectionHeading>
+                <CalendarReminder calendar={calendar} care />
+              </section>
+            )}
+          </div>
+        )}
+        {showCareTasks && can('read_messages') && <MessagesPanel messages={messages} />}
+        {showCareTasks && can('read_journey') && (
+          <section className="panel wide saved-card" aria-labelledby="saved-title">
+            <h2 id="saved-title" className="icon-heading"><Icon name="home" />Saved locations</h2>
+            <ul className="saved-places">
+              {savedPlaces.map(place => (
+                <li key={place.name}><Icon name={place.icon} />{place.name}
+                  {journey?.destination.name === place.name && <span>Current destination</span>}</li>
               ))}
-            </ol>
-          ) : (
-            <>
-              <p>{onlyHelp ? helpDetail(onlyHelp.journey) : loaded ? 'No help requests.' : 'Loading…'}</p>
-              <p className="email-status" role="status" data-email-status={onlyHelp?.alert.email_status}>{onlyHelp ? careEmailText[onlyHelp.alert.email_status] ?? '' : ''}</p>
-            </>
-          )}
-        </section>
-      )}
-      {showCareTasks && can('read_help') && <CareFeed entries={feed} journey={feedJourney} loaded={loaded} onAcknowledge={onAcknowledge} />}
-      {showCareTasks && can('read_messages') && <MessagesPanel messages={messages} />}
-      {showCareTasks && can('read_journey') && (
-        <section className="panel wide" aria-labelledby="family-journey-title">
-          <SectionHeading id="family-journey-title" icon="pin">Journey</SectionHeading>
-          {journey ? <div className="journey-details"><JourneyDetails journey={journey} presenter={openDemo} /></div>
-            : <p className="journey-empty">{loaded ? 'No journey right now.' : 'Loading…'}</p>}
-        </section>
-      )}
-      {showCareTasks && can('read_journey') && (
-        <section className="panel wide" aria-labelledby="saved-title">
-          <h2 id="saved-title" className="icon-heading"><Icon name="home" />Saved locations</h2>
-          <ul className="saved-places">
-            {savedPlaces.map(place => (
-              <li key={place.name}><Icon name={place.icon} />{place.name}
-                {journey?.destination.name === place.name && <span>Current destination</span>}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {openDemo && <AccountPanel settings={emailSettings} />}
+            </ul>
+          </section>
+        )}
+        {openDemo && <AccountPanel settings={emailSettings} />}
+      </div>
     </div>
   )
 }
