@@ -59,3 +59,7 @@ npm run dev
 Open `http://localhost:5173/signup` in two windows: choose **I'm signing up for myself** in one and **I'm a caregiver** in the other. Start a walk, then tap the map away from the route to see the check-in and the alert.
 
 No Google keys needed to try it.
+
+### Watch a help request arrive
+
+With both dashboards open, run the scripted Tim Hortons walk from the FastAPI docs at `http://localhost:8000/docs` using `POST /api/demo/run`. When the check-in appears on Patient, choose **Get help** and watch for the matching request on Care. Send a note with **Message caregiver** to see where ordinary messages appear.
