@@ -444,6 +444,7 @@ async function initMap() {
     const lat = e.latLng.lat(), lng = e.latLng.lng();
     if (armed) { setPlace(armed, { name: pinName(lat, lng), lat, lng }); arm(null); }
     else if (manual) moveTo([lat, lng], MINUTES_PER_CLICK);
+    else if (EMBED && embedMovable) tellMove(lat, lng);
   });
   for (const which of ATTACH ? [] : ["start", "dest"]) {
     const input = $(which === "start" ? "in-start" : "in-dest");
@@ -779,13 +780,36 @@ function drawTrack(j) {
   if (latest) { drawStep(null, latest, j.risk.level); $("map").dataset.latest = latest.join(","); }
   else if (mk.me) mk.me.map = null;
 }
+// Embedded demo dashboards can let people move the walker: the dashboard saves the point.
+let embedMovable = false, meDragHooked = false;
+function tellMove(latitude, longitude) {
+  parent.postMessage({ type: "whats-next-map", status: "move", journey: JOURNEY_PARAM, latitude, longitude }, location.origin);
+}
+function setEmbedMovable(on) {
+  embedMovable = on;
+  if (map) map.setOptions({ draggableCursor: on ? "crosshair" : null });
+  if (!mk.me) return;
+  mk.me.gmpDraggable = on;
+  mk.me.title = on ? "Current position · drag to move" : "Current position";
+  if (!meDragHooked) {
+    meDragHooked = true;
+    mk.me.addListener("dragend", () => {
+      if (!embedMovable) return;
+      const p = mk.me.position, lat = typeof p.lat === "function" ? p.lat() : p.lat, lng = typeof p.lng === "function" ? p.lng() : p.lng;
+      tellMove(lat, lng);
+    });
+  }
+}
 function startEmbed() {
   attachedId = JOURNEY_PARAM;
   $("map").dataset.journey = attachedId;
   // The dashboard sends only the journey its own access check already allowed.
   addEventListener("message", e => {
     if (e.origin !== location.origin || e.source !== parent) return;
-    if (e.data?.type === "whats-next-journey" && e.data.journey?.id === attachedId) showJourney(e.data.journey);
+    if (e.data?.type === "whats-next-journey" && e.data.journey?.id === attachedId) {
+      showJourney(e.data.journey);
+      setEmbedMovable(Boolean(e.data.movable));
+    }
   });
   tellParent("ready");
 }

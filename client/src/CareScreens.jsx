@@ -85,12 +85,12 @@ function PatientActions({ caregiverName, canMessage, canHelp, helpLabel, busy, o
   )
 }
 
-function JourneyDetails({ journey, presenter = false, onMapProvider }) {
+function JourneyDetails({ journey, presenter = false, onMapProvider, onMove }) {
   return (
     <>
       <p className="journey-destination">Going to {journey.destination.name}</p>
       <div className="journey-panel">
-        <JourneyMap journey={journey} presenter={presenter} onProviderChange={onMapProvider} />
+        <JourneyMap journey={journey} presenter={presenter} onProviderChange={onMapProvider} onMove={onMove} />
         <div className="journey-strip">
           <p className="journey-fact"><span>Last known location</span><strong>{locationText(journey)}</strong></p>
         </div>
@@ -99,7 +99,7 @@ function JourneyDetails({ journey, presenter = false, onMapProvider }) {
   )
 }
 
-function TodayJourney({ journey, openDemo, options, canTravel, busy, onStart, onEnd, headingRef, detailsRef }) {
+function TodayJourney({ journey, openDemo, options, canTravel, busy, onStart, onEnd, onMove, headingRef, detailsRef }) {
   const [mapProvider, setMapProvider] = useState(null)
   const choices = canTravel && options.length > 0 && (
     <ul className="destination-list">
@@ -120,7 +120,7 @@ function TodayJourney({ journey, openDemo, options, canTravel, busy, onStart, on
       </SectionHeading>
       {journey ? (
         <div id="journey-details" className="journey-details" ref={detailsRef} tabIndex={-1}>
-          <JourneyDetails journey={journey} onMapProvider={setMapProvider} />
+          <JourneyDetails journey={journey} onMapProvider={setMapProvider} onMove={onMove} />
           <h3>Directions</h3>
           <p className="directions-note">Approximate, from the last known location.</p>
           <ol className="direction-steps">{directionSteps(journey).map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}</ol>
@@ -198,7 +198,7 @@ function CalendarReminder({ calendar, care = false }) {
 
 export function TodayScreen({
   calendar, openDemo, checkIn, journey, help, reminder, sender, viewerIsRecipient, caregiver, helpLabel, confirmation, options, busy,
-  controlsUnavailable, canTravel, canHelp, canMessage, caregiverName, onSendMessage, onKeepGoing, onAskForHelp, onStart, onEnd,
+  controlsUnavailable, canTravel, canHelp, canMessage, caregiverName, onSendMessage, onKeepGoing, onAskForHelp, onStart, onEnd, onMoveLocation,
   remindersRef, journeyRef, detailsRef,
 }) {
   const question = `Still heading to ${journey?.destination.name}?`
@@ -248,7 +248,7 @@ export function TodayScreen({
         </div>
       </div>
       <TodayJourney journey={journey} openDemo={openDemo} options={options} canTravel={canTravel} busy={busy}
-        onStart={onStart} onEnd={onEnd} headingRef={journeyRef} detailsRef={detailsRef} />
+        onStart={onStart} onEnd={onEnd} onMove={onMoveLocation} headingRef={journeyRef} detailsRef={detailsRef} />
     </div>
   )
 }
@@ -417,7 +417,7 @@ function AccountPanel({ settings }) {
 }
 
 export function CaregiverDashboard({
-  calendar, emailSettings, loaded, helpRequests = [], feed = [], feedJourney = null, onAcknowledge = null, helpTitle, journey, reminder, sender, recipient, openDemo, showCareTasks, messages, can, onSendReminder,
+  calendar, emailSettings, loaded, helpRequests = [], feed = [], feedJourney = null, onAcknowledge = null, helpTitle, journey, reminder, sender, recipient, openDemo, showCareTasks, messages, can, onSendReminder, onMoveLocation = null,
 }) {
   const onlyHelp = helpRequests.length === 1 ? helpRequests[0] : null
   const canRemind = showCareTasks && can('send_reminders')
@@ -457,7 +457,7 @@ export function CaregiverDashboard({
         {showCareTasks && can('read_journey') && (
           <section className="panel wide journey-card" aria-labelledby="family-journey-title">
             <SectionHeading id="family-journey-title" icon="pin">Journey</SectionHeading>
-            {journey ? <div className="journey-details"><JourneyDetails journey={journey} presenter={openDemo} /></div>
+            {journey ? <div className="journey-details"><JourneyDetails journey={journey} presenter={openDemo} onMove={openDemo ? onMoveLocation : null} /></div>
               : <p className="journey-empty">{loaded ? 'No journey right now.' : 'Loading…'}</p>}
           </section>
         )}

@@ -136,6 +136,11 @@ export function createJourneyApi(circle = null) {
 
     sendMessage: body => postJson(`${base}/messages`, { body }),
 
+    // Demo only: moves the walker by posting one GPS point. Circles have no location route.
+    moveLocation: circle ? null : (journeyId, latitude, longitude, timestamp) => postJson(
+      `/journeys/${encodeURIComponent(journeyId)}/location`, { latitude, longitude, timestamp },
+    ),
+
     async sendReminder(message) {
       if (circle) {
         return request(`${base}/reminder`, {

@@ -209,3 +209,8 @@ footer { max-width: 76rem; padding: 20px 24px 32px; border-top: 0; }
 @media (forced-colors: active) {
   .icon-heading svg, .app-mark { border: 1px solid CanvasText; }
 }
+
+/* Demo hint under a movable map. */
+.map-hint { display: flex; align-items: center; gap: 8px; padding: 10px 20px 0; color: var(--gh-dusk); font-size: 1rem; }
+.map-hint svg { flex: none; width: 20px; height: 20px; color: var(--gh-rose); }
+.journey-panel .map-hint { padding: 12px 20px 0; }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { liveMapUrl, readMapsConfig, viewerUrl } from './data/journeyApi.js'
+import Icon from './Icon.jsx'
 
 // Backup map: runs inside the backend's Leaflet viewer. Labels come from the API journey
 // because that viewer's own route drawing hardcodes Home and Tim Hortons.
@@ -14,17 +15,24 @@ const drawInViewer = `(text) => {
   layers.push(L.polyline(points, { color: "#6E5683", weight: 5, opacity: 0.9, lineCap: "round", lineJoin: "round" }).addTo(map));
   layers.push(L.circleMarker(start, { radius: 9, color: "#FFF6E8", weight: 3, fillColor: "#6E5683", fillOpacity: 1 }).addTo(map).bindTooltip(journey.start.name, { permanent: true, direction: "top" }));
   layers.push(L.circleMarker(end, { radius: 11, color: "#FFF6E8", weight: 3, fillColor: "#A8435A", fillOpacity: 1 }).addTo(map).bindTooltip(journey.destination.name, { permanent: true, direction: "top", offset: [0, -10] }));
+  document.getElementById("map").classList.toggle("wn-movable", Boolean(journey.movable));
   if (journey.latest) {
     const point = [journey.latest.latitude, journey.latest.longitude];
-    layers.push(L.circleMarker(point, { radius: 16, stroke: false, fillColor: "#F0B04F", fillOpacity: 0.35 }).addTo(map));
-    layers.push(L.circleMarker(point, { radius: 8, color: "#FFF6E8", weight: 3, fillColor: "#3B2B45", fillOpacity: 1 }).addTo(map).bindTooltip("Last known location"));
+    const halo = L.circleMarker(point, { radius: 16, stroke: false, fillColor: "#F0B04F", fillOpacity: 0.35, interactive: false }).addTo(map);
+    // In the demo the dot can be dragged; dropping it sends the new spot to the dashboard.
+    const me = L.marker(point, { draggable: Boolean(journey.movable), keyboard: false, zIndexOffset: 1000,
+      icon: L.divIcon({ className: "wn-me", iconSize: [22, 22] }) }).addTo(map)
+      .bindTooltip(journey.movable ? "Last known location · drag to move" : "Last known location");
+    me.on("drag", e => halo.setLatLng(e.target.getLatLng()));
+    me.on("dragend", e => { const p = e.target.getLatLng(); window.whatsNextMove && window.whatsNextMove(p.lat, p.lng); });
+    layers.push(halo, me);
     points.push(point);
   }
   map.invalidateSize();
   map.fitBounds(L.latLngBounds(points.concat([start, end])).pad(0.35));
 }`
 
-function BackupJourneyMap({ journey }) {
+function BackupJourneyMap({ journey, onMove }) {
   const frame = useRef(null)
   const draw = useRef(null)
   const [status, setStatus] = useState('loading')
@@ -34,7 +42,10 @@ function BackupJourneyMap({ journey }) {
     start: journey.start,
     destination: journey.destination,
     latest: journey.latest_location,
+    movable: Boolean(onMove),
   })
+  const moveRef = useRef(onMove)
+  useEffect(() => { moveRef.current = onMove }, [onMove])
 
   useEffect(() => {
     if (status !== 'loading') return undefined
@@ -58,7 +69,12 @@ function BackupJourneyMap({ journey }) {
       const style = viewer.document.createElement('style')
       // The panel's controls create journeys and alerts, so dashboards show only the map.
       style.textContent = '#panel { display: none !important; } body { height: 100vh; }'
+        + ' .wn-me { box-sizing: border-box; border-radius: 50%; background: #3B2B45; border: 3px solid #FFF6E8; box-shadow: 0 2px 6px rgba(59,43,69,.45); }'
+        + ' .wn-movable.leaflet-container { cursor: crosshair; } .wn-movable .wn-me { cursor: grab; } .wn-movable .wn-me:active { cursor: grabbing; }'
       viewer.document.head.append(style)
+      // Clicking anywhere on the map also moves the walker there (only when the dashboard allows it).
+      viewer.whatsNextMove = (latitude, longitude) => moveRef.current?.(latitude, longitude)
+      viewer.eval('map').on('click', event => viewer.whatsNextMove(event.latlng.lat, event.latlng.lng))
       draw.current = viewer.eval(drawInViewer)
       setStatus('ready')
     } catch {
@@ -75,7 +91,7 @@ function BackupJourneyMap({ journey }) {
   )
 }
 
-function GoogleJourneyMap({ journey, onFailed }) {
+function GoogleJourneyMap({ journey, onFailed, onMove }) {
   const frame = useRef(null)
   const [ready, setReady] = useState(false)
   const payload = JSON.stringify({
@@ -91,6 +107,9 @@ function GoogleJourneyMap({ journey, onFailed }) {
     track: journey.track,
     risk: { level: journey.risk.level },
   })
+  const movable = Boolean(onMove)
+  const moveRef = useRef(onMove)
+  useEffect(() => { moveRef.current = onMove }, [onMove])
 
   useEffect(() => {
     function receive(event) {
@@ -98,6 +117,9 @@ function GoogleJourneyMap({ journey, onFailed }) {
       if (event.data?.type !== 'whats-next-map' || event.data.journey !== journey.id) return
       if (event.data.status === 'ready') setReady(true)
       if (event.data.status === 'failed') onFailed()
+      if (event.data.status === 'move' && Number.isFinite(event.data.latitude) && Number.isFinite(event.data.longitude)) {
+        moveRef.current?.(event.data.latitude, event.data.longitude)
+      }
     }
     window.addEventListener('message', receive)
     return () => window.removeEventListener('message', receive)
@@ -112,8 +134,8 @@ function GoogleJourneyMap({ journey, onFailed }) {
   // The dashboard passes only the journey it was already authorized to read.
   useEffect(() => {
     if (!ready) return
-    frame.current?.contentWindow?.postMessage({ type: 'whats-next-journey', journey: JSON.parse(payload) }, window.location.origin)
-  }, [payload, ready])
+    frame.current?.contentWindow?.postMessage({ type: 'whats-next-journey', journey: JSON.parse(payload), movable }, window.location.origin)
+  }, [movable, payload, ready])
 
   return (
     <>
@@ -124,7 +146,7 @@ function GoogleJourneyMap({ journey, onFailed }) {
   )
 }
 
-export default function JourneyMap({ journey, presenter = false, onProviderChange }) {
+export default function JourneyMap({ journey, presenter = false, onProviderChange, onMove = null }) {
   const [provider, setProvider] = useState('checking')
   const [googleFailed, setGoogleFailed] = useState(false)
 
@@ -149,10 +171,13 @@ export default function JourneyMap({ journey, presenter = false, onProviderChang
     <>
       <div className="journey-map" data-journey-id={journey.id} data-map-provider={provider} data-route-source={journey.route_source}>
         {provider === 'checking' && <p className="map-status">Loading map…</p>}
-        {provider === 'google' && <GoogleJourneyMap key={journey.id} journey={journey} onFailed={useBackup} />}
-        {provider === 'backup' && <BackupJourneyMap journey={journey} />}
+        {provider === 'google' && <GoogleJourneyMap key={journey.id} journey={journey} onFailed={useBackup} onMove={onMove} />}
+        {provider === 'backup' && <BackupJourneyMap journey={journey} onMove={onMove} />}
         {googleFailed && <p className="map-note" role="status">Google map unavailable. Showing the backup map.</p>}
       </div>
+      {onMove && provider !== 'checking' && (
+        <p className="map-hint"><Icon name="pin" />Tap the map, or drag the dark dot, to move the location.</p>
+      )}
       {presenter && provider === 'google' && (
         <p className="map-presenter">
           <a className="directions-link" href={liveMapUrl(journey.id)}
