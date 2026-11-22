@@ -148,7 +148,8 @@ class Message(BaseModel):
 
 # ---------------------------------------------------------------- risk
 class RiskReason(BaseModel):
-    code: Literal["off_route", "stationary", "repeated_revisits", "left_safe_zone", "taking_too_long"]
+    code: Literal["off_route", "stationary", "repeated_revisits", "left_safe_zone", "taking_too_long",
+                  "ignored_checkin", "said_okay"]
     points: int
     description: str
 
@@ -181,8 +182,8 @@ class Alert(BaseModel):
     id: str = Field(default_factory=lambda: new_id("alt"))
     journey_id: str
     user_name: str
-    type: Literal["risk", "help_request"]
-    priority: Literal["high", "critical"]
+    type: Literal["risk", "help_request", "said_okay"]
+    priority: Literal["info", "high", "critical"]
     message: str
     risk_score: int
     risk_level: RiskLevel
@@ -191,6 +192,8 @@ class Alert(BaseModel):
     created_at: datetime
     acknowledged: bool = False
     acknowledged_at: datetime | None = None
+    # "accepted" means Gmail's API accepted the message. It does not prove inbox delivery.
+    email_status: Literal["not_sent", "sending", "accepted", "failed"] = "not_sent"
 
 
 # ---------------------------------------------------------------- journey
@@ -215,7 +218,12 @@ class Journey(BaseModel):
 
     # internal bookkeeping (not sent to clients)
     high_alert_latched: bool = Field(False, exclude=True)
+    critical_latched: bool = Field(False, exclude=True)  # 90+ "email everyone" already sent
+    email_escalation: bool = Field(False, exclude=True)  # only walks started with the app session can email
     last_checkin_at: datetime | None = Field(None, exclude=True)
+    okay_at: datetime | None = Field(None, exclude=True)  # when she answered "I'm okay"
+    checkin_sent_at: datetime | None = Field(None, exclude=True)  # unanswered check-in: when it was sent
+    checkin_sent_where: TrackPoint | None = Field(None, exclude=True)  # ...and where she was
 
     @computed_field  # type: ignore[misc]
     @property

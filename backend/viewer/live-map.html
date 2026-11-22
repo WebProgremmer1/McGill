@@ -54,7 +54,7 @@ select{font:inherit;font-size:13px;padding:4px 6px;border:1px solid var(--line);
 
 /* planner */
 .planner{padding:14px;display:grid;gap:12px}
-.fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,150px);gap:10px;align-items:end}
+.fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;align-items:end}
 @media(max-width:900px){.fields{grid-template-columns:1fr}}
 .field{display:grid;gap:4px;min-width:0}
 .field label{font-size:12px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:6px}
@@ -89,9 +89,9 @@ input[type=text]:focus{outline:2px solid var(--accent);outline-offset:-1px}
 .mapcard{padding:8px;display:grid;gap:6px}
 #map{width:100%;height:min(68vh,600px);min-height:380px;border-radius:8px;background:var(--grid)}
 #map.armed{outline:3px solid var(--accent);outline-offset:-3px}
-.mapmsg{display:grid;place-items:center;height:100%;padding:24px;text-align:center;color:var(--muted)}
 .legend{display:flex;flex-wrap:wrap;gap:4px 14px;padding:2px 6px;font-size:12px;color:var(--muted)}
-.legend i{display:inline-block;width:16px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.legend span:not(:last-child)::after{content:"·";margin-left:14px}
+.mapmsg{display:grid;place-items:center;height:100%;padding:24px;text-align:center;color:var(--muted)}
 .panel{padding:16px;display:grid;gap:14px}
 .scoreline{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
 .score{font-family:var(--f-display);font-size:58px;line-height:.9;font-weight:700;font-variant-numeric:tabular-nums}
@@ -118,6 +118,20 @@ dl.stats dd{margin:0;font-family:var(--f-mono);font-size:14px}
 .opts .btn{font-weight:500;background:var(--surface)}
 .opts .btn.help{color:var(--high);border-color:var(--high)}
 .empty{color:var(--muted);font-size:13px}
+/* visit reminder (Google Calendar) */
+.visit{border:2px solid var(--accent);border-radius:18px;padding:14px;display:grid;gap:10px;background:var(--surface)}
+.visit[hidden]{display:none}
+.visit .who{display:grid;grid-template-columns:72px minmax(0,1fr);gap:12px;align-items:center}
+.visit .face{width:72px;height:72px;border-radius:50%;object-fit:cover;background:var(--accent);color:var(--surface);
+  display:grid;place-items:center;font:700 26px/1 var(--f-display)}
+.visit .name{font:700 20px/1.2 var(--f-display)}
+.visit .rel{color:var(--muted);font-size:14px}
+.visit .when{font-size:17px}
+.visit .when b{font-family:var(--f-display)}
+.visit .why{font-size:15px}
+.visit .also{font-size:13px;color:var(--muted)}
+.visit .opts .btn{font-size:15px;padding:9px 16px}
+.visit .opts .btn.primary{background:var(--accent);color:var(--surface);border-color:var(--accent)}
 #events{list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:420px;overflow:auto}
 #events li{border:1px solid var(--line);border-radius:10px;padding:9px 12px;display:grid;gap:4px;font-size:13.5px}
 .evtype{font-family:var(--f-mono);font-size:11.5px;padding:2px 7px;border-radius:5px;justify-self:start}
@@ -146,7 +160,6 @@ html.embed,html.embed body{height:100%;margin:0;background:transparent}
 <body>
 <div class="wrap">
   <header>
-    <div class="eyebrow">Live demo · real backend · real Montreal streets · simulated walks</div>
     <h1>A Lark in the Park</h1>
     <p class="lede">Pick a start and a destination. The backend asks Google for a real walking route.
       Each scenario then sends pretend GPS points along those streets to the real API (one point per 30 seconds of walk time),
@@ -169,10 +182,6 @@ html.embed,html.embed body{height:100%;margin:0;background:transparent}
           <button class="btn" type="button" data-arm="dest">Pick on map</button>
         </div>
       </div>
-      <div class="field">
-        <label for="in-name">Walker</label>
-        <input type="text" id="in-name" value="Margaret" autocomplete="off">
-      </div>
     </div>
     <div class="routeinfo" id="routeinfo"><span class="hint">Choose a start and a destination to get the walking route.</span></div>
   </section>
@@ -181,12 +190,10 @@ html.embed,html.embed body{height:100%;margin:0;background:transparent}
     <div class="card mapcard">
       <div id="map"><div class="mapmsg">Loading Google Maps…</div></div>
       <div class="legend">
-        <span><i style="background:var(--accent);height:4px"></i>Planned route</span>
-        <span><i style="background:rgba(47,93,134,.45)"></i>On route (50 m)</span>
-        <span><i style="background:rgba(47,93,134,.25)"></i>A little off (150 m)</span>
-        <span><i style="background:rgba(47,93,134,.1)"></i>Off (300 m), beyond is far off</span>
-        <span><i style="background:var(--zone);opacity:.4"></i>Safe zones (75 m)</span>
-        <span><i style="background:var(--low)"></i><i style="background:var(--med)"></i><i style="background:var(--high)"></i>Walk, coloured by risk</span>
+        <span>On route (50 m)</span>
+        <span>A little off (150 m)</span>
+        <span>Off (300 m), beyond is far off</span>
+        <span>Safe zones (75 m)</span>
       </div>
     </div>
     <aside class="card panel" aria-live="polite">
@@ -213,6 +220,8 @@ html.embed,html.embed body{height:100%;margin:0;background:transparent}
           <li>Loops: 15 per return to the same spot (max 30)</li>
           <li>Left the destination's safe zone: 15</li>
           <li>Taking too long: free until 1.5× the expected walk time, then 2 per minute (max 30)</li>
+          <li>No answer to "Are you okay?" for 2+ minutes while she keeps walking: +15</li>
+          <li>She answers "I'm okay": −15 for the rest of the walk (the caregiver is told when)</li>
         </ul>
         30+ = check-in on the phone · 60+ = caregiver alert
       </div>
@@ -225,8 +234,7 @@ html.embed,html.embed body{height:100%;margin:0;background:transparent}
     <button class="btn" id="m-stay" type="button" disabled>Stay here</button>
     <button class="btn help" id="m-help" type="button" disabled>I need help</button>
     <button class="btn" id="m-finish" type="button" disabled>Finish walk</button>
-    <span class="hint">She starts at HOME. Click the map to move her; each click is 1 minute of walking.
-      Try: walk a parallel street, go far the wrong way, circle back to the same corner, or press "Stay here" a few times.</span>
+    <span class="hint">She starts at HOME. Click the map to move her; each click is 1 minute of walking.</span>
   </section>
 
   <div class="eyebrow">Or play a scenario</div>
@@ -234,13 +242,14 @@ html.embed,html.embed body{height:100%;margin:0;background:transparent}
 
   <div class="card bar">
     <div class="status" id="status">Plan a route, then pick a scenario.</div>
-    <label>Delay per point <input type="range" id="speed" min="80" max="900" value="350"></label>
+    <label>Playback speed <input type="range" id="speed" min="80" max="900" value="630"></label>
     <button class="btn" id="stop" type="button">Stop</button>
   </div>
 
   <section class="bottom">
     <div class="card phone">
       <h2 id="phone-title">Margaret's phone</h2>
+      <div class="visit" id="visit" hidden aria-live="polite"></div>
       <div class="screen" id="phone"><div class="empty">Check-ins appear here when the risk is medium.</div></div>
     </div>
     <div class="card feed">
@@ -276,7 +285,7 @@ let ROUTE = null;                             // {points: [[lat, lng]], source, 
 let armed = null;                             // "start" | "dest" while picking on the map
 const mk = {};                                // map objects
 let walkLayers = [];
-const walker = () => $("in-name").value.trim() || "Margaret";
+const walker = () => "Margaret";   // the walker's name, used in messages
 const destName = () => place.dest?.name || "the destination";
 
 /* ---------------- metres (same idea as app/geo.py) ----------------
@@ -516,7 +525,7 @@ function clearWalk() {
   $("s-time").textContent = "–"; $("s-route").textContent = "–";
   $("logbody").innerHTML = "";
 }
-const SHORT = { off_route: "off route", stationary: "still", repeated_revisits: "loops", left_safe_zone: "safe zone", taking_too_long: "too long" };
+const SHORT = { off_route: "off route", stationary: "still", repeated_revisits: "loops", left_safe_zone: "safe zone", taking_too_long: "too long", ignored_checkin: "no answer", said_okay: "said okay" };
 function logRow(minute, metresOff, risk, change) {
   const tr = document.createElement("tr");
   const cls = change > 0 ? "up" : change < 0 ? "down" : "";
@@ -537,7 +546,7 @@ function showRisk(risk, minute, metresOff) {
   $("score").innerHTML = `${risk.score}<small>/100</small>`;
   $("lvl").className = "lvl " + risk.level; $("lvl").textContent = risk.level;
   $("reasons").innerHTML = risk.reasons.length
-    ? risk.reasons.map(r => `<li><span class="pts">+${r.points}</span><span>${esc(r.description)}</span></li>`).join("")
+    ? risk.reasons.map(r => `<li><span class="pts">${r.points > 0 ? "+" : ""}${r.points}</span><span>${esc(r.description)}</span></li>`).join("")
     : `<li class="none">No concerns.</li>`;
   $("s-time").textContent = `${minute.toFixed(1)} of ~${Math.round(expectedMinutes())} min`;
   $("s-route").textContent = `${Math.round(metresOff)} m`;
@@ -551,8 +560,22 @@ function showCheckin(c, jid) {
     const answer = b.textContent;
     const res = await post(`/journeys/${jid}/checkin`, answer === "I need help" ? { help_requested: true } : { response: answer }).catch(() => null);
     $("phone").innerHTML = `<div class="bubble">You answered: <b>${esc(answer)}</b></div>`;
-    if (res?.alert && !res.deduplicated) addEvent("crit", "Help button pressed", res.alert.message, res.alert.id);
-    else addEvent("ok", `${walker()} answered`, `"${esc(answer)}"`);
+    if (!res) return;
+    if (res.alert?.type === "help_request") {
+      addEvent("crit", "Help button pressed", res.alert.message, res.deduplicated ? null : res.alert.id);
+      $("phone").innerHTML += `<div class="bubble">Help is on the way. Your caregiver has been told.</div>`;
+    } else if (res.alert?.type === "said_okay") {
+      addEvent("ok", `${walker()} said she's okay`, esc(res.alert.message));
+      const when = new Date(res.alert.created_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      $("phone").innerHTML += `<div class="bubble">Thank you, ${esc(walker())}. We told your caregiver you said you're okay at ${when}.</div>`;
+    }
+    // her answer changes the score ("I'm okay" -15; any answer removes the "no answer" +15)
+    if (walk && walk.id === jid) {
+      const off = walk.last ? distToRoute(toXY(walk.last)) : 0;
+      showRisk(res.risk, walk.minute, off);
+      logRow(walk.minute, off, res.risk, res.risk.score - walk.score);
+      walk.score = res.risk.score;
+    }
   });
 }
 function addEvent(cls, title, body, alertId) {
@@ -565,6 +588,54 @@ function addEvent(cls, title, body, alertId) {
   });
   $("events").prepend(li);
 }
+
+/* ---------------- visit reminders (Google Calendar) ---------------- */
+// A visit = a calendar event with a trusted contact as a guest. The backend decides when to show it.
+const DISMISSED_KEY = "walk-safety:dismissed-visits";
+function dismissed() { try { return JSON.parse(localStorage.getItem(DISMISSED_KEY) || "[]"); } catch { return []; } }
+function dismiss(id) { try { localStorage.setItem(DISMISSED_KEY, JSON.stringify([...dismissed(), id].slice(-50))); } catch {} }
+function speak(text) {
+  if (!("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text); u.rate = 0.9;
+  speechSynthesis.speak(u);
+}
+function initials(name) { return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join(""); }
+function showVisit(r) {
+  const box = $("visit");
+  if (!r) { box.hidden = true; box.innerHTML = ""; box.dataset.id = ""; return; }
+  if (box.dataset.id === r.event_id && !box.hidden) {   // same visit: just refresh the countdown
+    box.querySelector(".soon").textContent = soonText(r); return;
+  }
+  const v = r.visitor, first = v.name.split(" ")[0];
+  const face = v.photo_url
+    ? `<img class="face" src="${esc(v.photo_url)}" alt="" referrerpolicy="no-referrer">`
+    : `<div class="face">${esc(initials(v.name))}</div>`;
+  const also = r.with.length ? `<div class="also">Coming with: ${r.with.map(c => esc(c.name.split(" ")[0]) + (c.relationship ? ` (your ${esc(c.relationship)})` : "")).join(", ")}</div>` : "";
+  box.dataset.id = r.event_id;
+  box.innerHTML = `<div class="eyebrow">Visitor coming</div>
+    <div class="who">${face}<div><div class="name">${esc(first)}</div>${v.relationship ? `<div class="rel">Your ${esc(v.relationship)}</div>` : ""}</div></div>
+    <div class="when">Arriving at <b>${esc(r.arrival_text)}</b> · <span class="soon">${esc(soonText(r))}</span></div>
+    ${r.reason ? `<div class="why">${esc(r.reason)}</div>` : ""}${also}
+    <div class="opts"><button class="btn primary" type="button" data-act="read">Read aloud</button><button class="btn" type="button" data-act="ok">Got it</button></div>`;
+  const img = box.querySelector("img.face");
+  if (img) img.onerror = () => { const d = document.createElement("div"); d.className = "face"; d.textContent = initials(v.name); img.replaceWith(d); };
+  box.querySelector('[data-act="read"]').onclick = () => speak(r.read_aloud);
+  box.querySelector('[data-act="ok"]').onclick = () => { dismiss(r.event_id); window.speechSynthesis?.cancel(); showVisit(null); };
+  box.hidden = false;
+}
+function soonText(r) {
+  const m = Math.round((new Date(r.arrives_at) - Date.now()) / 60000);
+  return m > 1 ? `in ${m} minutes` : m >= -1 ? "now" : `${-m} minutes ago`;
+}
+async function pollVisits() {
+  try {
+    const body = await fetch(API + "/reminders").then(r => r.json());
+    const hidden = dismissed();
+    showVisit((body.reminders || []).find(r => r.show_now && !hidden.includes(r.event_id)) || null);
+  } catch { /* no backend / no Google: the phone simply shows no reminder */ }
+}
+if (!EMBED) { pollVisits(); setInterval(pollVisits, 60000); }   // dashboards show only the map
 
 /* ---------------- running a scenario ---------------- */
 async function post(path, body) {
@@ -639,7 +710,7 @@ async function run(sc) {
     if (me.stop) return;
     $("status").innerHTML = `<b>${sc.title}</b> · GPS point ${i + 1} of ${pts.length}`;
     await step(toLatLng(pts[i]), i * 0.5);
-    await sleep(+$("speed").value);
+    await sleep(980 - $("speed").value);   // slider right = faster = shorter wait between points
   }
   if (me.stop) return;
   if (!attachedId) await post(`/journeys/${walk.id}/complete`).catch(() => {});
@@ -737,7 +808,6 @@ SCENARIOS.forEach(sc => {
   $("picker").appendChild(b);
 });
 document.querySelectorAll("[data-arm]").forEach(b => b.onclick = () => arm(b.dataset.arm));
-$("in-name").addEventListener("input", refreshCards);
 $("stop").onclick = () => { stopWalk(); $("status").textContent = "Stopped."; };
 $("m-start").onclick = () => startManual().catch(e => { $("status").textContent = "Error: " + (e.message || JSON.stringify(e)); });
 $("m-stay").onclick = () => walk?.last && moveTo(walk.last, MINUTES_PER_CLICK);

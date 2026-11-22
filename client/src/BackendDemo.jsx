@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { CaregiverDashboard, TodayScreen } from './CareScreens.jsx'
 import { firstName } from './data/contacts.js'
-import { createJourneyApi } from './data/journeyApi.js'
+import { createJourneyApi, readCalendarReminder, readEmailSettings } from './data/journeyApi.js'
 import { destinationOptions, helpOnlyRequest } from './data/places.js'
 import Shell from './Shell.jsx'
 
@@ -13,6 +13,8 @@ export default function BackendDemo({ family, circle = null, account = null, onA
   const [busy, setBusy] = useState(false)
   const [revision, setRevision] = useState(0)
   const [continuedJourney, setContinuedJourney] = useState(null)
+  const [calendar, setCalendar] = useState({ state: 'loading' })
+  const [emailSettings, setEmailSettings] = useState(null)
   const remindersHeading = useRef(null)
   const journeyHeading = useRef(null)
   const journeyDetails = useRef(null)
@@ -23,14 +25,19 @@ export default function BackendDemo({ family, circle = null, account = null, onA
   const lastEvent = useRef(undefined)
   const messageRegion = useRef(null)
   const seenMessages = useRef(null)
+  // Holds Get help from the first press until a snapshot read after the save has rendered.
+  const helpLock = useRef(null)
+  const helpSnapshot = useRef(null)
 
   useEffect(() => {
     const controller = new AbortController()
     let timer
     async function poll() {
+      const confirmsHelp = helpLock.current === 'confirming'
       try {
         const snapshot = await api.readJourney(AbortSignal.any([controller.signal, AbortSignal.timeout(10000)]), family)
         if (!controller.signal.aborted) {
+          if (confirmsHelp) helpSnapshot.current = snapshot
           setData(snapshot)
           setReadError('')
         }
@@ -53,6 +60,36 @@ export default function BackendDemo({ family, circle = null, account = null, onA
       clearTimeout(timer)
     }
   }, [api, circle, family, onAccessLost, revision])
+
+  useEffect(() => {
+    if (circle) return undefined
+    let active = true
+    let timer
+    let latest = 0
+    async function load() {
+      const request = ++latest
+      clearTimeout(timer)
+      const [next, email] = await Promise.all([readCalendarReminder(), family ? readEmailSettings() : null])
+      if (!active || request !== latest) return
+      setCalendar(next)
+      setEmailSettings(email)
+      timer = setTimeout(load, 60000)
+    }
+    load()
+    // Returning to a window picks up a Google connection made in the other one.
+    window.addEventListener('focus', load)
+    return () => {
+      active = false
+      clearTimeout(timer)
+      window.removeEventListener('focus', load)
+    }
+  }, [circle, family])
+
+  useEffect(() => {
+    if (!data || data !== helpSnapshot.current) return
+    helpSnapshot.current = null
+    helpLock.current = null
+  }, [data])
 
   const { journey = null, checkIn = null, help = null, helpJourney = null } = data ?? {}
   const canReadReminders = api.can('read_reminders')
@@ -146,17 +183,24 @@ export default function BackendDemo({ family, circle = null, account = null, onA
   }, [announcement, data, eventId])
 
   const requestHelp = () => {
-    if (helpSent) return
+    if (helpSent || busy || helpLock.current) return
+    helpLock.current = 'sending'
     perform(async () => {
-      if (journey) {
-        await api.requestHelp(journey.id, checkIn?.id)
-        return
-      }
-      const record = await api.createJourney(helpOnlyRequest(account?.name))
       try {
-        await api.requestHelp(record.id)
-      } finally {
-        await api.closeJourney(record.id, 'cancel').catch(() => {})
+        if (journey) {
+          await api.requestHelp(journey.id, checkIn?.id)
+        } else {
+          const record = await api.createJourney(helpOnlyRequest(account?.name))
+          try {
+            await api.requestHelp(record.id)
+          } finally {
+            await api.closeJourney(record.id, 'cancel').catch(() => {})
+          }
+        }
+        helpLock.current = 'confirming'
+      } catch (error) {
+        helpLock.current = null
+        throw error
       }
     }, 'Your help request didn’t send. Try again.')
   }
@@ -216,11 +260,12 @@ export default function BackendDemo({ family, circle = null, account = null, onA
       <div ref={messageRegion} className="sr-only" role="status" aria-live="polite" aria-atomic="true" />
       {(readError || actionError) && <p className="error-banner" role="alert">{actionError || readError}</p>}
       {family ? (
-        <CaregiverDashboard loaded={Boolean(data)} help={help} helpTitle={helpTitle} helpJourney={helpJourney} journey={journey}
+        <CaregiverDashboard calendar={circle ? null : calendar} emailSettings={emailSettings} loaded={Boolean(data)} help={help} helpTitle={helpTitle} helpJourney={helpJourney} journey={journey}
           reminder={reminder} sender={sender} recipient={recipient} openDemo={!circle} showCareTasks={!circle || Boolean(recipient)}
           messages={data?.messages} can={api.can} onSendReminder={sendReminder} />
       ) : (
-        <TodayScreen checkIn={checkIn} journey={journey} help={helpSent ? help : null} reminder={reminder} sender={sender}
+        <TodayScreen openDemo={!circle} checkIn={checkIn} journey={journey} help={helpSent ? help : null} reminder={reminder} sender={sender}
+          calendar={circle ? null : calendar}
           viewerIsRecipient={viewerIsRecipient} caregiver={caregiver} helpLabel={helpLabel} confirmation={confirmation}
           options={options} busy={busy} controlsUnavailable={controlsUnavailable}
           canTravel={api.can('start_journey')} canHelp={canHelp} canMessage={api.can('send_messages')}

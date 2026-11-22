@@ -32,6 +32,30 @@ The server never sends `GOOGLE_MAPS_API_KEY` to a browser. If the browser key is
 server key, the dashboards use the backup map. To drive an existing journey with simulated GPS, open
 `/viewer/live-map.html?journey=active`.
 
+### Google rehearsal
+
+Set up one Google Cloud project while signed in as the approved test account:
+
+1. In **APIs & Services > Library**, enable **Gmail API** and **Google Calendar API**.
+2. In **Google Auth Platform**, complete **Branding**, choose **External**, stay in **Testing**, and add the
+   account under **Audience > Test users**.
+3. Under **Clients**, create a **Web application** client with this authorized redirect URI:
+   `http://localhost:8000/api/google/callback`
+4. Download its JSON to `backend/secrets/google_oauth_client.json`. The folder is Git-ignored.
+5. Copy `.env.example` to `.env`. Set `GOOGLE_OAUTH_DONE_URL=http://localhost:5173/`,
+   `TOKEN_ENCRYPTION_KEY`, `GOOGLE_ALLOWED_ACCOUNT_EMAIL`, and `GOOGLE_CALENDAR_ID=primary`.
+6. Set `HELP_EMAIL_TO` and `HELP_EMAIL_CONSENT=yes` only after that recipient agrees to test emails.
+7. Restart FastAPI after changing these settings. Without Supabase, reconnect Google after each restart.
+
+Google's consent screen asks for the account's email address, permission to send Gmail, and read-only Calendar access.
+
+Connect Google creates an 8-hour, HttpOnly app session for the one account in `GOOGLE_ALLOWED_ACCOUNT_EMAIL`.
+Google status, Calendar, reminders, escalation, and trusted-contact routes require that session.
+
+A help alert is saved first. If the browser has that session, `HELP_EMAIL_TO` is set, and `HELP_EMAIL_CONSENT=yes`,
+the backend sends one generic Gmail message for that alert ID. `email_status: accepted` means Gmail's API accepted
+it. Confirm receipt in the test inbox.
+
 Other commands:
 
 ```
@@ -124,6 +148,30 @@ someone who stays on the route but is very slow, or keeps stopping for short bre
 Example: a 10-minute walk is free until minute 15. At minute 20 she gets
 (20 - 15) x 2 = **10 points**. At minute 30 or later she gets the maximum, **30 points**.
 
+### Her answer to "Are you okay?"
+
+When the score reaches 30, her phone asks "Are you okay?". She can answer **I'm okay** or **I need help**.
+
+| What she does | Points |
+|---|---|
+| Answers **I'm okay** | **−15 for the rest of the walk** (answering again doesn't take off more) |
+| **Doesn't answer** for 2+ minutes and keeps walking | **+15** until she answers |
+| Doesn't answer but is standing still | nothing extra (the standing-still rule already counts it) |
+| Answers **I need help** | urgent alert to the caregiver straight away |
+
+* When she says "I'm okay", the caregiver gets a message with the time, for example
+  *"Margaret answered "I'm okay" at 2:36 PM, 6 min into the walk to Tim Hortons."*
+  Her phone also confirms: *"Thank you, Margaret. We told your caregiver you said you're okay at 2:36 PM."*
+* The score never goes below 0.
+
+Why only 15 points: people with Alzheimer's often don't notice when they are confused, so
+"I'm okay" might not be true. If she is really lost, the other rules still push the score past 60
+and the caregiver is alerted.
+
+Example: 200 m off route for 8 minutes = 25 + 16 = **41** (check-in). She answers "I'm okay": **26**.
+Ten minutes later she is still off route: 25 + 36 − 15 = **46**. After 20 minutes off route the time
+part maxes out: 25 + 40 − 15 = **50**, so if she also goes in a loop or stops, the caregiver is alerted.
+
 ### What the score does
 
 | Score | Level | What happens |
@@ -199,3 +247,36 @@ phone sends {latitude, longitude, timestamp}
   -> service.py    medium? make a check-in.  high? make a caregiver alert.
   -> reply with the score, the reasons, and any check-in or alert created
 ```
+
+## Email workflows
+
+Each workflow has one sender:
+
+| Workflow | Recipient | Sender |
+|---|---|---|
+| Get help or "I need help" | `HELP_EMAIL_TO` only, with generic text | `HelpEmailer` |
+| Medium, high, or 90+ walk risk | The connected account, then trusted contacts | `EscalationEngine` |
+| "Arrived" or "walk ended" | Contacts already emailed for that alert | `EscalationEngine` |
+| Timed Calendar event | The connected account | `EventEmails` |
+
+Walks started in a browser without the Connect Google session send no email.
+
+`CALENDAR_EMAILS` defaults to `on`. Set it to `off` before a live restart unless the connected account
+should receive these reminders. With in-memory storage, restarting inside the reminder window can send
+that event's reminder again.
+
+## Testing Gmail and Calendar
+
+Offline (fake Gmail and Calendar, always run): `python -m pytest`.
+`tests/test_google_integration.py` checks that every contact added through the API receives alerts
+and shows up as a visitor when invited to a calendar event.
+
+Live, against the connected Google account (sends about 4 real emails, contacts are isolated):
+
+```bash
+RUN_GOOGLE_TESTS=1 python -m pytest tests/test_google_live.py -v
+```
+
+- `GOOGLE_TEST_RECIPIENT=someone@gmail.com` sends the test alert there instead of to the connected account.
+- `GOOGLE_TEST_VISITOR=someone@gmail.com` also checks that a calendar event in the next 24 h with
+  that guest becomes a visit reminder.

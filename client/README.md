@@ -37,6 +37,10 @@ In the open demo, **Send reminder** stores a closed demo record through FastAPIâ
 
 **Message caregiver** sends a short note through `POST /api/messages`. Notes appear under **Messages** on the Care dashboard and stay separate from urgent help requests and journeys. They are kept in memory, so restart FastAPI after pulling this route and expect them to clear on restart or demo reset.
 
+## Google rehearsal
+
+Connect Google, Gmail help emails, and Calendar reminders use server-side settings in `backend/.env`. The open demo keeps fictional journey records, while Calendar data appears only for the browser that completed Connect Google. See `backend/README.md`.
+
 ## Help and calling
 
 **Get help**, or **Ask [caregiver] for help** once a caregiver is linked, creates a backend help request for the Care dashboard. It does not call or notify anyone. A **Call** action appears only when the backend returns that personâ€™s phone number. No phone number is stored in source.

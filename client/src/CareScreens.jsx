@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { firstName, initials, toTelHref } from './data/contacts.js'
+import { liveMapUrl } from './data/journeyApi.js'
 import { directionSteps, HELP_ONLY_PLACE, locationText, savedPlaces } from './data/places.js'
 import Icon from './Icon.jsx'
 import JourneyMap from './JourneyMap.jsx'
@@ -83,12 +84,12 @@ function PatientActions({ caregiverName, canMessage, canHelp, helpLabel, busy, o
   )
 }
 
-function JourneyDetails({ journey }) {
+function JourneyDetails({ journey, presenter = false, onMapProvider }) {
   return (
     <>
       <p className="journey-destination">Going to {journey.destination.name}</p>
       <div className="journey-panel">
-        <JourneyMap journey={journey} />
+        <JourneyMap journey={journey} presenter={presenter} onProviderChange={onMapProvider} />
         <div className="journey-strip">
           <p className="journey-fact"><span>Last known location</span><strong>{locationText(journey)}</strong></p>
         </div>
@@ -97,7 +98,8 @@ function JourneyDetails({ journey }) {
   )
 }
 
-function TodayJourney({ journey, options, canTravel, busy, onStart, onEnd, headingRef, detailsRef }) {
+function TodayJourney({ journey, openDemo, options, canTravel, busy, onStart, onEnd, headingRef, detailsRef }) {
+  const [mapProvider, setMapProvider] = useState(null)
   const choices = canTravel && options.length > 0 && (
     <ul className="destination-list">
       {options.map(option => (
@@ -117,10 +119,15 @@ function TodayJourney({ journey, options, canTravel, busy, onStart, onEnd, headi
       </SectionHeading>
       {journey ? (
         <div id="journey-details" className="journey-details" ref={detailsRef} tabIndex={-1}>
-          <JourneyDetails journey={journey} />
+          <JourneyDetails journey={journey} onMapProvider={setMapProvider} />
           <h3>Directions</h3>
           <p className="directions-note">Approximate, from the last known location.</p>
           <ol className="direction-steps">{directionSteps(journey).map((step, index) => <li key={`${index}-${step}`}>{step}</li>)}</ol>
+          {openDemo && mapProvider === 'google' && (
+            <a className="button secondary live-map-action" href={liveMapUrl(journey.id)} target="_blank" rel="noopener">
+              <Icon name="pin" />Open live map (new tab)
+            </a>
+          )}
           {choices}
           {canTravel && (
             <div className="journey-actions">
@@ -138,8 +145,58 @@ function TodayJourney({ journey, options, canTravel, busy, onStart, onEnd, headi
   )
 }
 
+const patientEmailText = {
+  sending: 'Sending email…',
+  accepted: 'Gmail accepted the email to your caregiver.',
+  failed: 'The email didn’t send, but your request is on the care dashboard.',
+}
+
+const careEmailText = {
+  not_sent: 'In-app alert only. No email was sent.',
+  sending: 'Sending email…',
+  accepted: 'Gmail accepted the email.',
+  failed: 'The email failed. This alert is still here.',
+}
+
+function eventTime(event) {
+  if (event.all_day) {
+    const [year, month, day] = event.start.split('-').map(Number)
+    return `${new Date(year, month - 1, day).toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })} · All day`
+  }
+  const start = new Date(event.start)
+  const dayText = start.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' })
+  return `${dayText} · ${start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+}
+
+function CalendarReminder({ calendar, label = 'Next on your calendar', care = false }) {
+  const messages = {
+    loading: 'Checking your calendar…',
+    empty: 'No upcoming events.',
+    not_configured: 'Calendar isn’t set up yet.',
+    not_connected: calendar.canConnect ? 'Calendar isn’t connected.' : 'Calendar isn’t set up yet.',
+    unavailable: 'Calendar is unavailable right now.',
+  }
+  return (
+    <article className={care ? 'calendar-reminder care-calendar' : 'calendar-reminder'} data-calendar-state={calendar.state}>
+      <p className="calendar-label"><Icon name="calendar" />{label}</p>
+      {calendar.state === 'ok' ? (
+        <>
+          <p className="calendar-title">{calendar.event.title}</p>
+          <p className="calendar-time"><time dateTime={calendar.event.start}>{eventTime(calendar.event)}</time></p>
+        </>
+      ) : <p className="calendar-state">{messages[calendar.state] ?? messages.unavailable}</p>}
+      {!care && calendar.canConnect && (
+        <>
+          <p className="calendar-consent">Connect Google to send help emails through Gmail and show Calendar events.</p>
+          <a className="button secondary" href="/api/google/connect"><Icon name="signIn" />Connect Google</a>
+        </>
+      )}
+    </article>
+  )
+}
+
 export function TodayScreen({
-  checkIn, journey, help, reminder, sender, viewerIsRecipient, caregiver, helpLabel, confirmation, options, busy,
+  calendar, openDemo, checkIn, journey, help, reminder, sender, viewerIsRecipient, caregiver, helpLabel, confirmation, options, busy,
   controlsUnavailable, canTravel, canHelp, canMessage, caregiverName, onSendMessage, onKeepGoing, onAskForHelp, onStart, onEnd,
   remindersRef, journeyRef, detailsRef,
 }) {
@@ -147,10 +204,14 @@ export function TodayScreen({
   const senderLine = sender?.relationship && viewerIsRecipient
     ? `${sender.name} · Your ${sender.relationship}`
     : sender?.name
+  // A real event leads the card. Setup and error states stay below the caregiver's reminder.
+  const calendarCard = calendar && <CalendarReminder calendar={calendar} />
+  const eventFirst = calendar?.state === 'ok'
   return (
     <div className="today-view">
       <section className="today-section message-card" aria-labelledby="reminders-title">
-        <SectionHeading id="reminders-title" icon="message" headingRef={remindersRef}>Latest message</SectionHeading>
+        <SectionHeading id="reminders-title" icon="calendar" headingRef={remindersRef}>Reminders</SectionHeading>
+        {eventFirst && calendarCard}
         {reminder ? (
           <article className="sender-reminder">
             <div className="reminder-from">
@@ -160,11 +221,13 @@ export function TodayScreen({
             <p className="reminder-message">{reminder}{sender ? ` — ${firstName(sender)}` : ''}</p>
           </article>
         ) : <p className="reminder-message">No messages yet</p>}
+        {!eventFirst && calendarCard}
       </section>
       <PatientActions caregiverName={caregiverName} canMessage={canMessage} canHelp={canHelp} helpLabel={helpLabel}
         busy={busy} onHelp={onAskForHelp} onSendMessage={onSendMessage} />
       <div className="today-confirmation-wrap">
         <p className="response today-confirmation" role="status">{confirmation}</p>
+        <p className="email-status" role="status">{help ? patientEmailText[help.email_status] ?? '' : ''}</p>
         {help && <CallLink person={caregiver} />}
       </div>
       {checkIn && (
@@ -181,18 +244,20 @@ export function TodayScreen({
           </div>
         </section>
       )}
-      <TodayJourney journey={journey} options={options} canTravel={canTravel} busy={busy}
+      <TodayJourney journey={journey} openDemo={openDemo} options={options} canTravel={canTravel} busy={busy}
         onStart={onStart} onEnd={onEnd} headingRef={journeyRef} detailsRef={detailsRef} />
     </div>
   )
 }
 
-function ReminderForm({ recipient, latest, sender, onSend }) {
+function ReminderForm({ calendar, recipient, latest, sender, onSend }) {
   const [text, setText] = useState('')
   const [status, setStatus] = useState('')
   const [sending, setSending] = useState(false)
   const name = firstName(recipient)
   const senderLine = sender?.relationship && name ? `${sender.name} · ${name}’s ${sender.relationship}` : sender?.name
+  // Only a browser with the Google session gets a Calendar result here.
+  const showCalendar = ['ok', 'empty', 'unavailable'].includes(calendar?.state)
 
   async function submit(event) {
     event.preventDefault()
@@ -217,13 +282,16 @@ function ReminderForm({ recipient, latest, sender, onSend }) {
   return (
     <section className="panel wide" aria-labelledby="family-reminders-title">
       <SectionHeading id="family-reminders-title" icon="calendar">Reminders</SectionHeading>
-      <form className="reminder-form" onSubmit={submit}>
-        <label htmlFor="reminder-text">{name ? `Send a reminder to ${name}` : 'Send a reminder'}</label>
-        <textarea id="reminder-text" rows="3" maxLength="140" value={text}
-          onChange={event => { setText(event.target.value); setStatus('') }} />
-        <button type="submit" className="button primary" aria-disabled={sending}><Icon name="next" />{name ? `Send to ${name}` : 'Send reminder'}</button>
-        <p className="form-status" role="status">{status}</p>
-      </form>
+      <div className="reminder-layout">
+        <form className="reminder-form" onSubmit={submit}>
+          <label htmlFor="reminder-text">{name ? `Send a reminder to ${name}` : 'Send a reminder'}</label>
+          <textarea id="reminder-text" rows="3" maxLength="140" value={text}
+            onChange={event => { setText(event.target.value); setStatus('') }} />
+          <button type="submit" className="button primary" aria-disabled={sending}><Icon name="next" />{name ? `Send to ${name}` : 'Send reminder'}</button>
+          <p className="form-status" role="status">{status}</p>
+        </form>
+        {showCalendar && <CalendarReminder calendar={calendar} label="Next on the calendar" care />}
+      </div>
       {latest && (
         <div className="latest-reminder">
           {sender && (
@@ -266,8 +334,40 @@ function helpDetail(helpJourney) {
   return `On the way to ${helpJourney.destination.name}. ${locationText(helpJourney)}`
 }
 
+function helpEmailText(settings) {
+  if (!settings) return 'Checking…'
+  if (settings.unavailable) return 'Unavailable right now'
+  if (!settings.connected) return 'Not available in this browser'
+  if (settings.ready) return 'On'
+  if (!settings.recipient) return 'Off · no caregiver address'
+  if (!settings.consent) return 'Off · waiting for caregiver consent'
+  return 'Off · Gmail permission is missing'
+}
+
+function recipientText(settings) {
+  if (!settings) return 'Checking…'
+  if (settings.unavailable) return 'Unavailable right now'
+  if (!settings.connected) return 'Connect Google on the Patient dashboard to view it.'
+  return settings.recipient ?? 'Not configured'
+}
+
+function AccountPanel({ settings }) {
+  return (
+    <section className="panel wide account-panel" aria-labelledby="account-title">
+      <SectionHeading id="account-title" icon="person">Account</SectionHeading>
+      <h3>Email notifications</h3>
+      <dl className="email-settings">
+        <div><dt>Caregiver address</dt><dd className="email-recipient">{recipientText(settings)}</dd></div>
+        <div><dt>Help emails</dt><dd className="help-email-state">{helpEmailText(settings)}</dd></div>
+        <div><dt>Ordinary messages</dt><dd className="message-email-state">In the app only. Email opt-in is the next feature.</dd></div>
+      </dl>
+      <p className="settings-note">Set by the demo server. These settings are read-only.</p>
+    </section>
+  )
+}
+
 export function CaregiverDashboard({
-  loaded, help, helpTitle, helpJourney, journey, reminder, sender, recipient, openDemo, showCareTasks, messages, can, onSendReminder,
+  calendar, emailSettings, loaded, help, helpTitle, helpJourney, journey, reminder, sender, recipient, openDemo, showCareTasks, messages, can, onSendReminder,
 }) {
   const cardTitle = recipient ? `Caring for ${recipient.name}` : openDemo ? 'Demo care recipient' : 'No one is linked yet.'
   return (
@@ -284,16 +384,17 @@ export function CaregiverDashboard({
         <section className={help ? 'panel help-panel has-request' : 'panel help-panel'} data-journey-id={help?.journey_id} aria-labelledby="help-title">
           <h2 id="help-title" className="icon-heading"><Icon name="help" />{help ? helpTitle : 'Help requests'}</h2>
           <p>{help ? helpDetail(helpJourney) : loaded ? 'No help requests.' : 'Loading…'}</p>
+          <p className="email-status" role="status" data-email-status={help?.email_status}>{help ? careEmailText[help.email_status] ?? '' : ''}</p>
         </section>
       )}
       {showCareTasks && can('read_messages') && <MessagesPanel messages={messages} />}
       {showCareTasks && can('send_reminders') && (
-        <ReminderForm recipient={recipient} latest={reminder} sender={sender} onSend={onSendReminder} />
+        <ReminderForm calendar={calendar} recipient={recipient} latest={reminder} sender={sender} onSend={onSendReminder} />
       )}
       {showCareTasks && can('read_journey') && (
         <section className="panel wide" aria-labelledby="family-journey-title">
           <SectionHeading id="family-journey-title" icon="pin">Journey</SectionHeading>
-          {journey ? <div className="journey-details"><JourneyDetails journey={journey} /></div>
+          {journey ? <div className="journey-details"><JourneyDetails journey={journey} presenter={openDemo} /></div>
             : <p className="journey-empty">{loaded ? 'No journey right now.' : 'Loading…'}</p>}
         </section>
       )}
@@ -308,6 +409,7 @@ export function CaregiverDashboard({
           </ul>
         </section>
       )}
+      {openDemo && <AccountPanel settings={emailSettings} />}
     </div>
   )
 }

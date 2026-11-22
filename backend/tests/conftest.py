@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.config import Settings  # noqa: E402
+from app.db import DEFAULT_PERSON  # noqa: E402
 from app.geo import offset_point  # noqa: E402
 from app.main import create_app  # noqa: E402
 
@@ -29,6 +30,12 @@ def client():
 @pytest.fixture
 def journey(client):
     return make_journey(client)
+
+
+def sign_in(client, email="test.account@example.com"):
+    """Give this test client an app session without running Google OAuth."""
+    client.app.state.google.read_session = lambda token: {"person_key": DEFAULT_PERSON, "email": email}
+    return client
 
 
 def make_journey(client, **over):

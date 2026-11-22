@@ -1,13 +1,41 @@
 import { DEMO_REMINDER_PLACE, HELP_ONLY_PLACE, reminderRequest, reminderText } from './places.js'
 
 export const viewerUrl = '/viewer/'
+export const liveMapUrl = journeyId => `/viewer/live-map.html?journey=${encodeURIComponent(journeyId)}`
 
 let mapsConfig
 export function readMapsConfig() {
   mapsConfig ??= fetch('/api/maps-config')
     .then(response => (response.ok ? response.json() : { maps_enabled: false }))
     .catch(() => ({ maps_enabled: false }))
+    .then(config => {
+      if (!config.maps_enabled) mapsConfig = undefined // The next map checks again after keys are added.
+      return config
+    })
   return mapsConfig
+}
+
+// Private calendar data comes back only for the browser with a server-side Google session.
+export async function readCalendarReminder() {
+  const [status, next] = await Promise.all([
+    request('/google/status').catch(() => null),
+    request('/google/calendar/next').catch(() => ({ state: 'unavailable' })),
+  ])
+  return { ...next, canConnect: Boolean(status?.configured) && !status?.connected }
+}
+
+export async function readEmailSettings() {
+  try {
+    const status = await request('/google/status')
+    return {
+      connected: Boolean(status.connected),
+      recipient: status.help_email_to ?? null,
+      consent: Boolean(status.help_email_consent),
+      ready: Boolean(status.help_email_ready),
+    }
+  } catch {
+    return { unavailable: true }
+  }
 }
 
 async function request(path, options = {}) {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { readMapsConfig, viewerUrl } from './data/journeyApi.js'
+import { liveMapUrl, readMapsConfig, viewerUrl } from './data/journeyApi.js'
 
 // Backup map: runs inside the backend's Leaflet viewer. Labels come from the API journey
 // because that viewer's own route drawing hardcodes Home and Tim Hortons.
@@ -122,7 +122,7 @@ function GoogleJourneyMap({ journey, onFailed }) {
   )
 }
 
-export default function JourneyMap({ journey }) {
+export default function JourneyMap({ journey, presenter = false, onProviderChange }) {
   const [provider, setProvider] = useState('checking')
   const [googleFailed, setGoogleFailed] = useState(false)
 
@@ -134,17 +134,29 @@ export default function JourneyMap({ journey }) {
     return () => { active = false }
   }, [])
 
+  useEffect(() => {
+    onProviderChange?.(provider)
+  }, [onProviderChange, provider])
+
   const useBackup = useCallback(() => {
     setGoogleFailed(true)
     setProvider('backup')
   }, [])
 
   return (
-    <div className="journey-map" data-journey-id={journey.id} data-map-provider={provider} data-route-source={journey.route_source}>
-      {provider === 'checking' && <p className="map-status">Loading map…</p>}
-      {provider === 'google' && <GoogleJourneyMap key={journey.id} journey={journey} onFailed={useBackup} />}
-      {provider === 'backup' && <BackupJourneyMap journey={journey} />}
-      {googleFailed && <p className="map-note" role="status">Google map unavailable. Showing the backup map.</p>}
-    </div>
+    <>
+      <div className="journey-map" data-journey-id={journey.id} data-map-provider={provider} data-route-source={journey.route_source}>
+        {provider === 'checking' && <p className="map-status">Loading map…</p>}
+        {provider === 'google' && <GoogleJourneyMap key={journey.id} journey={journey} onFailed={useBackup} />}
+        {provider === 'backup' && <BackupJourneyMap journey={journey} />}
+        {googleFailed && <p className="map-note" role="status">Google map unavailable. Showing the backup map.</p>}
+      </div>
+      {presenter && provider === 'google' && (
+        <p className="map-presenter">
+          <a className="directions-link" href={liveMapUrl(journey.id)}
+            target="_blank" rel="noopener">Open full viewer (new tab)</a>
+        </p>
+      )}
+    </>
   )
 }
