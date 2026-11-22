@@ -10,7 +10,7 @@ const roles = [
 
 export default function DemoRolePicker() {
   useEffect(() => {
-    document.title = 'What’s Next?'
+    document.title = 'Lark'
   }, [])
 
   return (
@@ -21,7 +21,7 @@ export default function DemoRolePicker() {
       </picture>
       <div className="role-picker-group">
         <header className="role-picker-heading">
-          <h1>What’s Next?</h1>
+          <h1>Lark</h1>
           <p id="role-picker-question">Who’s using the app today?</p>
         </header>
         <div className="role-picker-cards" role="group" aria-labelledby="role-picker-question">
