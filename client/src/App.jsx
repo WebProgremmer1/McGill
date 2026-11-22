@@ -3,6 +3,7 @@ import { demoData, demoStore } from './data/demoStore.js'
 import AccessGate from './AccessGate.jsx'
 import BackendDemo from './BackendDemo.jsx'
 import { authRequired } from './data/accountApi.js'
+import { careRoute } from './data/careRoutes.js'
 import Icon from './Icon.jsx'
 import Shell from './Shell.jsx'
 import SignUp from './SignUp.jsx'
@@ -18,7 +19,7 @@ function App() {
 }
 
 function OpenDemo() {
-  const family = window.location.pathname.replace(/\/$/, '') === '/manage'
+  const family = Boolean(careRoute(window.location.pathname))
   const mock = new URLSearchParams(window.location.search).get('mode') === 'mock'
   const roleLink = <a className="directions-link" href="/signup">Back to role selection</a>
 

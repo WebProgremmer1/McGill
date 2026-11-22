@@ -179,19 +179,20 @@ With the app session, this also returns the read-only email settings: `help_emai
 No body. Idempotent.
 
 ## `GET /api/messages` → `Message[]` (newest first)  ·  `POST /api/messages` → 201
-Ordinary demo messages to a caregiver. They are kept in memory, cleared by `POST /api/demo/reset`, and never create alerts or journeys.
+The shared demo chat between the patient and caregiver. Messages are kept in memory and never create alerts or journeys, even if the text says "help".
 ```json
-{ "body": "I got home safely." }
+{ "body": "I got home safely.", "sender_role": "patient" }
 ```
-→ `{ "id": "msg_1a2b3c4d", "body": "I got home safely.", "created_at": "2026-01-01T09:20:00Z" }`
+→ `{ "id": "msg_1a2b3c4d", "body": "I got home safely.", "created_at": "2026-01-01T09:20:00Z", "sender_role": "patient" }`
 
-`body` is 1 to 280 characters after trimming.
+`body` is 1 to 280 characters after trimming. `sender_role` is `patient` or `caregiver` and defaults to `patient`. Circle routes set the sender from the session.
 
 ## Extras
 - `GET /api/routes/predefined` → `{ "routes": ["tim_hortons_demo"] }`
 - `POST /api/demo/run` → replays the Tim Hortons scenario instantly through the real risk engine:
   `{ "journey_id", "summary": {first_medium_at_minute, first_high_at_minute, final_score, …}, "steps": [ {minute, phase, description, latitude, longitude, score, level, reasons[], reason_details[], checkin_created, alert_created} ] }`.
   The journey, check-in and alert then show up in the normal GET endpoints.
+- `POST /api/demo/messages/clear` → `{ "cleared": 3 }`. Clears only the demo chat.
 - `POST /api/demo/reset` → clears all in-memory data.
 - `GET /api/maps-config` → `{ "browser_key": "…" | null, "maps_enabled": true }`, the separate browser key for Google Maps. It is `null` if blank or the same as the server key.
 - `POST /api/expected-route` with `{ "start": {latitude, longitude}, "destination": {latitude, longitude} }` →

@@ -395,7 +395,6 @@ button.destination-button[aria-disabled="true"] { cursor: progress; }
 .map-presenter { padding: 4px 16px; border-top: 1px solid #8fa396; }
 .map-presenter a { display: inline-flex; align-items: center; min-height: 44px; }
 
-.live-map-action { display: flex; width: 100%; margin-top: 12px; justify-content: center; text-align: center; }
 
 /* Several open help requests on Care, newest first */
 .help-request-list { display: grid; margin: 8px 0 0; padding: 0; list-style: none; }
@@ -403,3 +402,10 @@ button.destination-button[aria-disabled="true"] { cursor: progress; }
 .help-request-list li:first-child { padding-top: 0; border-top: 0; }
 .help-request-list li:last-child { padding-bottom: 0; }
 .help-request-list li p:first-child { margin-top: 0; overflow-wrap: anywhere; }
+
+/* Mark a Care help request as handled */
+.help-action { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 10px; }
+.help-action .button { width: auto; min-height: 44px; }
+.family-view .help-panel .help-action-error { margin-top: 0; color: #842e23; font-size: 1rem; font-weight: 650; }
+.help-action-error:empty { display: none; }
+#help-title:focus:not(:focus-visible) { outline: none; }

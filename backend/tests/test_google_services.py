@@ -402,6 +402,35 @@ def test_messages_survive_alongside_help_and_stay_separate(tmp_path):
     assert client.get("/api/messages").json()[0]["body"] == "I got home."
 
 
+def test_two_way_messages_keep_their_sender(tmp_path):
+    client, *_ = build(tmp_path)
+    old_style = client.post("/api/messages", json={"body": "From the patient."}).json()
+    reply = client.post("/api/messages", json={"body": "From care.", "sender_role": "caregiver"}).json()
+    assert old_style["sender_role"] == "patient" and reply["sender_role"] == "caregiver"
+    assert [m["id"] for m in client.get("/api/messages").json()] == [reply["id"], old_style["id"]]
+    assert client.post("/api/messages", json={"body": "No.", "sender_role": "admin"}).status_code == 422
+
+
+def test_clear_demo_chat_keeps_walk_and_help_alert(tmp_path):
+    client, fake, _ = build(tmp_path)
+    connect(client)
+    journey = make_journey(client)
+    assert help_request(client, journey["id"]).status_code == 200
+    client.post("/api/messages", json={"body": "A chat message."})
+    before = (client.get("/api/journeys").json(), client.get("/api/alerts").json(), len(fake.sent))
+    assert client.post("/api/demo/messages/clear").json() == {"cleared": 1}
+    assert client.get("/api/messages").json() == []
+    assert (client.get("/api/journeys").json(), client.get("/api/alerts").json(), len(fake.sent)) == before
+
+
+def test_typing_help_in_chat_is_only_a_message(tmp_path):
+    client, fake, _ = build(tmp_path)
+    connect(client)
+    make_journey(client)
+    assert client.post("/api/messages", json={"body": "help"}).status_code == 201
+    assert client.get("/api/alerts").json() == [] and fake.sent == []
+
+
 def test_im_okay_sends_no_help_email(tmp_path):
     client, fake, _ = build(tmp_path)
     connect(client)

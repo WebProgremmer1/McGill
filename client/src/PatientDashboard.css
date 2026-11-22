@@ -1,0 +1,35 @@
+.patient-dashboard .patient-help { display: grid; gap: 12px; }
+.patient-dashboard .care-calendar { margin-top: 0; }
+.patient-dashboard .patient-location { display: grid; gap: 2px; }
+.patient-dashboard .patient-location span { color: #38503e; font-size: 1.0625rem; }
+.patient-dashboard .journey-panel { width: 100%; }
+
+@media (min-width: 900px) {
+  .today-view.patient-dashboard {
+    max-width: 72rem;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 1fr) minmax(0, 6fr);
+    grid-template-rows: auto auto 1fr;
+    grid-template-areas:
+      "reminders reminders calendar"
+      "help journey journey"
+      "messages journey journey";
+    align-items: stretch;
+    reading-flow: grid-rows;
+  }
+  .today-view.patient-dashboard.has-check-in {
+    grid-template-rows: auto auto auto 1fr;
+    grid-template-areas:
+      "checkin checkin checkin"
+      "reminders reminders calendar"
+      "help journey journey"
+      "messages journey journey";
+  }
+  .patient-dashboard > .check-in { grid-area: checkin; }
+  .patient-dashboard > .message-card { grid-area: reminders; }
+  .patient-dashboard > .patient-calendar { grid-area: calendar; }
+  .patient-dashboard > .patient-help { grid-area: help; align-self: start; }
+  .patient-dashboard > .patient-messages { grid-area: messages; align-self: start; }
+  .patient-dashboard > .patient-journey { grid-area: journey; align-content: start; }
+  .patient-dashboard.no-calendar > .message-card { grid-column: 1 / -1; }
+  .patient-dashboard .journey-map { height: clamp(300px, 46vh, 460px); }
+}

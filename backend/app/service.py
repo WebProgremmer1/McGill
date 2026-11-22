@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from .errors import ApiError, not_found
+from .names import first_name, real_name
 from .models import (
     Alert, CheckIn, CheckInRequest, CheckInResult, Journey, JourneyCreate,
     LocationResult, LocationUpdate, Message, MessageCreate, RiskAssessment, TrackPoint, MIN,
@@ -29,16 +30,13 @@ def _is_okay(answer: str | None) -> bool:
     return (answer or "").strip().lower().replace("’", "'") in OKAY_ANSWERS
 
 
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _first_name(j: Journey) -> str:
-    return j.user_name.split()[0]
-
-
 def _checkin_message(j: Journey, risk: RiskAssessment) -> str:
-    name, dest = _first_name(j), j.destination.name
+    name, dest = first_name(j.user_name), j.destination.name
     codes = [r.code for r in risk.reasons]
     if "off_route" in codes:
         tail = "It looks like you may have taken a different way. Are you okay?"
@@ -50,7 +48,8 @@ def _checkin_message(j: Journey, risk: RiskAssessment) -> str:
         tail = "It's taking a bit longer than usual. Are you okay?"
     else:
         tail = "You've gone a bit farther than usual. Are you okay?"
-    return f"Hi {name}, you're on your way to {dest}. {tail}"
+    hello = f"Hi {name}," if name else "Hi,"
+    return f"{hello} you're on your way to {dest}. {tail}"
 
 
 class JourneyService:
@@ -72,13 +71,19 @@ class JourneyService:
 
     # ---------------------------------------------------------- demo messages
     def add_message(self, req: MessageCreate) -> Message:
-        message = Message(body=req.body, created_at=_now())
+        message = Message(body=req.body, sender_role=req.sender_role, created_at=_now())
         self.messages.append(message)
         del self.messages[:-MAX_MESSAGES]
         return message
 
     def list_messages(self) -> list[Message]:
         return list(reversed(self.messages))  # newest first
+
+    def clear_messages(self) -> int:
+        """Clear only the demo chat. Journeys, check-ins, alerts, and reminders stay."""
+        cleared = len(self.messages)
+        self.messages.clear()
+        return cleared
 
     def _notify(self, event: str, *args) -> None:
         """Tell the email escalation engine. An email problem never breaks the GPS endpoint."""
@@ -213,17 +218,18 @@ class JourneyService:
         return c
 
     def _make_alert(self, j: Journey, risk: RiskAssessment, kind: str, priority: str) -> Alert:
+        who = real_name(j.user_name) or "The patient"
         if kind == "help_request":
-            msg = f"URGENT: {j.user_name} pressed the help button on the way to {j.destination.name}."
+            msg = f"URGENT: {who} pressed the help button on the way to {j.destination.name}."
         elif kind == "said_okay":
             ref = j.reference_time()
             clock = ref.astimezone().strftime("%I:%M %p").lstrip("0")  # e.g. 2:36 PM (this computer's time zone)
             minutes = (ref - j.started_at).total_seconds() / 60
-            msg = (f"{j.user_name} answered \"I'm okay\" at {clock}, {minutes:.0f} min into the walk "
+            msg = (f"{who} answered \"I'm okay\" at {clock}, {minutes:.0f} min into the walk "
                    f"to {j.destination.name}. Risk is now {risk.score}/100.")
         else:
             why = "; ".join(r.description.rstrip(".") for r in risk.reasons) or "elevated risk"
-            msg = (f"{j.user_name} may need assistance on the way to {j.destination.name}. "
+            msg = (f"{who} may need assistance on the way to {j.destination.name}. "
                    f"Risk {risk.score}/100 ({why})")
         a = Alert(
             journey_id=j.id, user_name=j.user_name, type=kind, priority=priority,  # type: ignore[arg-type]

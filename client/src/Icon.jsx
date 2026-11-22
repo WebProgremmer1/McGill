@@ -17,6 +17,7 @@ const paths = {
   retry: <path d="M20 11a8 8 0 1 0-2.3 6.7M20 5v6h-6" />,
   home: <path d="M3 11.5 12 4l9 7.5M5.5 10v10h13V10M10 20v-6h4v6" />,
   help: <><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.1 1-1.1 1.8M12 17h.01" /></>,
+  close: <path d="m6 6 12 12M18 6 6 18" />,
   stop: <><circle cx="12" cy="12" r="9" /><path d="m9 9 6 6m0-6-6 6" /></>,
 }
 

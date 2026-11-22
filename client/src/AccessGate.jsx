@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import BackendDemo from './BackendDemo.jsx'
 import { fictionalMode, getCircle, getSession, signOut } from './data/accountApi.js'
+import { careRoute } from './data/careRoutes.js'
 import Icon from './Icon.jsx'
 import Onboarding, { TestSession } from './Onboarding.jsx'
 
@@ -92,17 +93,17 @@ function CircleRoute({ circleId, family }) {
     footer: (
       <>
         {fictionalMode && <span>Fictional test session · Not Google sign-in</span>}
-        <button type="button" className="text-button" onClick={leave}>Sign out</button>
+        {!family && <button type="button" className="text-button" onClick={leave}>Sign out</button>}
       </>
     ),
   }
-  return <BackendDemo key={circle.id} family={family} circle={circle} account={account} onAccessLost={onAccessLost} shell={shell} />
+  return <BackendDemo key={circle.id} family={family} circle={circle} account={account} onAccessLost={onAccessLost} onSignOut={leave} shell={shell} />
 }
 
 export default function AccessGate() {
   const path = window.location.pathname.replace(/\/$/, '')
-  const match = path.match(/^\/c\/([^/]+)(\/manage)?$/)
+  const match = path.match(/^\/c\/([^/]+)(\/manage(?:\/.*)?)?$/)
   if (match) return <CircleRoute circleId={decodeURIComponent(match[1])} family={Boolean(match[2])} />
   if (path === '/test-session' && fictionalMode) return <TestSession />
-  return <Onboarding familyView={path === '/manage'} />
+  return <Onboarding familyView={careRoute(path)?.base === '/manage'} />
 }

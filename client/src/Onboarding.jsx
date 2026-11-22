@@ -259,7 +259,8 @@ export default function Onboarding({ familyView }) {
     // The server's permissions choose the screen. The onboarding role does not.
     const permissions = circle.permissions ?? []
     const dashboard = permissions.includes('view_dashboard') && (familyView || !permissions.includes('view_today'))
-    window.location.replace(`/c/${encodeURIComponent(circle.id)}${dashboard ? '/manage' : ''}`)
+    const careView = familyView ? window.location.pathname.replace(/\/+$/, '').slice('/manage'.length) : ''
+    window.location.replace(`/c/${encodeURIComponent(circle.id)}${dashboard ? `/manage${careView}` : ''}`)
   }
 
   function route(next) {

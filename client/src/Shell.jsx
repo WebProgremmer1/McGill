@@ -1,12 +1,12 @@
 import { useEffect } from 'react'
 
 // Each dashboard is its own screen. The role comes only from the URL it was opened at.
-export default function Shell({ family, heading, plainBrand = false, action, footer, children }) {
+export default function Shell({ family, heading, plainBrand = false, pageTitle, nav, action, footer, children }) {
   const title = heading || (family ? 'Care dashboard' : 'Patient dashboard')
 
   useEffect(() => {
-    document.title = title
-  }, [title])
+    document.title = pageTitle || title
+  }, [pageTitle, title])
 
   return (
     <>
@@ -15,6 +15,7 @@ export default function Shell({ family, heading, plainBrand = false, action, foo
         {plainBrand
           ? <p className="brand person-name">What’s Next?</p>
           : <h1 className="brand person-name">{title}</h1>}
+        {nav}
         {action && <div className="header-action">{action}</div>}
       </header>
       <main id="main" className={family ? 'page family-page' : 'page today-page'}>{children}</main>

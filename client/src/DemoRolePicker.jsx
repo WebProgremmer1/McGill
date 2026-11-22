@@ -10,7 +10,7 @@ const roles = [
 
 export default function DemoRolePicker() {
   useEffect(() => {
-    document.title = 'Choose your role · What’s Next?'
+    document.title = 'What’s Next?'
   }, [])
 
   return (
@@ -19,15 +19,20 @@ export default function DemoRolePicker() {
         <source media="(prefers-reduced-motion: reduce)" srcSet="/hero-aesthetic-still.svg" />
         <img src="/hero-aesthetic.svg" alt="" />
       </picture>
-      <h1 className="sr-only">Choose your role.</h1>
-      <div className="role-picker-cards">
-        {roles.map(role => (
-          <a className="demo-role-card" href={role.href} key={role.href}>
-            <Icon name={role.icon} className="demo-role-card-icon" />
-            <span className="demo-role-card-label">{role.label}</span>
-            <span className="demo-role-card-opens">{role.opens} <span aria-hidden="true">→</span></span>
-          </a>
-        ))}
+      <div className="role-picker-group">
+        <header className="role-picker-heading">
+          <h1>What’s Next?</h1>
+          <p id="role-picker-question">Who’s using the app today?</p>
+        </header>
+        <div className="role-picker-cards" role="group" aria-labelledby="role-picker-question">
+          {roles.map(role => (
+            <a className="demo-role-card" href={role.href} key={role.href}>
+              <Icon name={role.icon} className="demo-role-card-icon" />
+              <span className="demo-role-card-label">{role.label}</span>
+              <span className="demo-role-card-opens">{role.opens} <span aria-hidden="true">→</span></span>
+            </a>
+          ))}
+        </div>
       </div>
     </main>
   )

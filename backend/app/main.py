@@ -124,6 +124,7 @@ def create_app(settings: Settings | None = None, route_provider: RouteProvider |
             "database": store.kind,
             "database_ok": store.ping(),
             "google_oauth_configured": google.configured,
+            "two_way_messages": True,
             "disclaimer": DISCLAIMER,
         }
 
@@ -207,6 +208,11 @@ def create_app(settings: Settings | None = None, route_provider: RouteProvider |
         """Replay the whole Tim Hortons scenario instantly. The journey, check-in and
         alert it creates are visible through the normal GET endpoints afterwards."""
         return run_demo(service)
+
+    @app.post("/api/demo/messages/clear", tags=["demo"])
+    def demo_clear_messages():
+        """Clear the demo chat without changing any other demo data."""
+        return {"cleared": service.clear_messages()}
 
     @app.post("/api/demo/reset", tags=["demo"])
     def demo_reset():

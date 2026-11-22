@@ -31,6 +31,7 @@ from .mailer import Mailer
 from .models import DISCLAIMER, Journey
 from .geo import distance_m
 from .risk import ARRIVED_M, CRITICAL_MIN
+from .names import first_name, real_name
 
 log = logging.getLogger(__name__)
 
@@ -273,7 +274,7 @@ class EscalationEngine:
     # ============================================================ wording
     @staticmethod
     def _first(snap: dict) -> str:
-        return (snap.get("user_name") or "Margaret").split()[0]
+        return first_name(snap.get("user_name") or "Margaret")
 
     @staticmethod
     def _where(snap: dict) -> str:
@@ -284,13 +285,14 @@ class EscalationEngine:
 
     def _person_mail(self, snap: dict) -> tuple[str, str]:
         name = self._first(snap)
-        return (f"Are you okay, {name}?",
-                f"Hi {name},\n\nIt looks like you may have left your usual route to "
+        return (f"Are you okay, {name}?" if name else "Are you okay?",
+                f"Hi{' ' + name if name else ''},\n\nIt looks like you may have left your usual route to "
                 f"{snap['destination']}. Are you okay?\n\nPlease answer the question on your phone. "
                 f"If you don't, your family will be told so they can help.\n\n— Walk Safety\n\n{DISCLAIMER}")
 
     def _family_mail(self, snap: dict, contact: Row, kind: str, token: str) -> tuple[str, str]:
-        name, full = self._first(snap), snap.get("user_name") or "Margaret"
+        full = real_name(snap.get("user_name") or "Margaret") or "The person you care for"
+        name = self._first(snap) or "The person you care for"
         hello = f"Hi {contact['name'].split()[0]},"
         why = "; ".join(r.rstrip(".") for r in snap.get("reasons") or []) or "unusual movement"
         if snap.get("help_requested"):

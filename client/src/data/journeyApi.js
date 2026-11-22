@@ -33,6 +33,7 @@ export async function readEmailSettings() {
       recipient: status.help_email_to ?? null,
       consent: Boolean(status.help_email_consent),
       ready: Boolean(status.help_email_ready),
+      gmail: !(status.missing_scopes ?? []).some(scope => scope.includes('gmail.send')),
     }
   } catch {
     return { unavailable: true }
@@ -63,6 +64,7 @@ const postJson = (path, body) => request(path, {
 export function createJourneyApi(circle = null) {
   const base = circle ? `/circles/${encodeURIComponent(circle.id)}` : ''
   const can = permission => !circle || Boolean(circle.permissions?.includes(permission))
+  let chatReplies = Boolean(circle)
 
   return {
     can,
@@ -74,13 +76,15 @@ export function createJourneyApi(circle = null) {
         can('read_help') ? request(`${base}/alerts${forCare ? '' : '?acknowledged=false'}`, { signal }) : [],
         request('/routes/predefined', { signal }).catch(() => ({ routes: [] })),
         // A 404 means this server predates messages. The rest of the dashboard keeps working.
-        forCare && can('read_messages')
+        can('read_messages')
           ? request(`${base}/messages`, { signal }).catch(error => {
             if (error.status === 404) return null
             throw error
           })
           : [],
       ])
+      // An older running server stores every message as the patient's, so Care waits for this capability.
+      if (!chatReplies) chatReplies = await request('/health', { signal }).then(health => Boolean(health.two_way_messages)).catch(() => false)
       const journeys = allJourneys.filter(item => ![HELP_ONLY_PLACE, DEMO_REMINDER_PLACE].includes(item.destination.name))
       const reminderRecord = circle ? null : allJourneys.filter(item => item.destination.name === DEMO_REMINDER_PLACE).at(-1)
       // The newest active journey is what both windows show, including a backend replay.
@@ -105,12 +109,13 @@ export function createJourneyApi(circle = null) {
         help,
         openHelp,
         feedJourney,
-        activity: buildCareFeed(feedJourney, alerts, recentCheckIns),
+        activity: buildCareFeed(feedJourney, alerts, recentCheckIns, allJourneys),
         routes: routes.routes ?? [],
         reminder: reminderRecord ? reminderText(reminderRecord) : reminder?.message ?? null,
         reminderId: reminderRecord?.id ?? reminder?.message ?? null,
         reminderSender: reminder?.sender ?? null,
         messages,
+        chatReplies,
       }
     },
 
@@ -134,7 +139,10 @@ export function createJourneyApi(circle = null) {
     // Circles have no authorized acknowledge route, so they never fall back to the open route.
     acknowledgeAlert: circle ? null : alertId => request(`/alerts/${encodeURIComponent(alertId)}/acknowledge`, { method: 'POST' }),
 
-    sendMessage: body => postJson(`${base}/messages`, { body }),
+    sendMessage: (body, senderRole) => postJson(`${base}/messages`, circle || !chatReplies ? { body } : { body, sender_role: senderRole }),
+
+    // Demo only. Circle conversations have no clear route.
+    clearChat: circle ? null : () => request('/demo/messages/clear', { method: 'POST' }),
 
     async sendReminder(message) {
       if (circle) {

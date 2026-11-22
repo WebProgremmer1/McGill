@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CaregiverDashboard, TodayScreen } from './CareScreens.jsx'
+import CareNav from './CareNav.jsx'
+import { AccountPanel, CaregiverDashboard, TodayScreen } from './CareScreens.jsx'
+import ChatPanel from './ChatPanel.jsx'
+import { carePath, careRoute } from './data/careRoutes.js'
+import { useChatRead } from './data/chatRead.js'
+import { isOwnMessage } from './data/chat.js'
 import { firstName } from './data/contacts.js'
+import { useHiddenFeed } from './data/feedHidden.js'
 import { createJourneyApi, readCalendarReminder, readEmailSettings } from './data/journeyApi.js'
 import { destinationOptions, helpOnlyRequest } from './data/places.js'
 import Shell from './Shell.jsx'
 
-export default function BackendDemo({ family, circle = null, account = null, onAccessLost, shell }) {
+export default function BackendDemo({ family, circle = null, account = null, onAccessLost, onSignOut, shell }) {
   const api = useMemo(() => createJourneyApi(circle), [circle])
   const [data, setData] = useState(null)
   const [readError, setReadError] = useState('')
@@ -25,6 +31,12 @@ export default function BackendDemo({ family, circle = null, account = null, onA
   const lastEvent = useRef(undefined)
   const messageRegion = useRef(null)
   const seenMessages = useRef(null)
+  const careChatHeading = useRef(null)
+  const careAccountHeading = useRef(null)
+  const focusCareView = useRef(false)
+  const [route, setRoute] = useState(() => careRoute(window.location.pathname))
+  const [careDraft, setCareDraft] = useState('')
+  const [reminderDraft, setReminderDraft] = useState('')
   // Holds Get help from the first press until a snapshot read after the save has rendered.
   const helpLock = useRef(null)
   const helpSnapshot = useRef(null)
@@ -103,6 +115,39 @@ export default function BackendDemo({ family, circle = null, account = null, onA
   const caregiver = circle?.caregivers?.find(person => person.id !== account?.id) ?? null
   const caregiverName = firstName(caregiver)
   const viewerName = firstName(account)
+  const viewerRole = family ? 'caregiver' : 'patient'
+  const showCareChat = family && (!circle || Boolean(recipient)) && api.can('read_messages')
+  const { unread, markDisplayedRead } = useChatRead({ enabled: showCareChat, messages: data?.messages, conversationId: circle?.id, accountId: account?.id })
+  const { hidden: hiddenFeed, hide: hideFeedEntry, restore: restoreFeedEntry } = useHiddenFeed({ enabled: family, conversationId: circle?.id, accountId: account?.id })
+  const careView = family ? route?.view ?? 'home' : null
+  const careBase = route?.base ?? '/manage'
+
+  useEffect(() => {
+    if (!family) return undefined
+    const onPop = () => {
+      focusCareView.current = true
+      setRoute(careRoute(window.location.pathname))
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [family])
+
+  // Each view opens at the top, with keyboard focus on its heading.
+  useEffect(() => {
+    if (!careView || !focusCareView.current) return
+    focusCareView.current = false
+    moveCareFocus(careView)
+  }, [careView])
+
+  // Only messages on a visible Messages page count as read.
+  const messagesLoaded = Boolean(data)
+  useEffect(() => {
+    if (careView !== 'messages' || !showCareChat || !messagesLoaded) return undefined
+    const mark = () => { if (document.visibilityState === 'visible') markDisplayedRead() }
+    mark()
+    document.addEventListener('visibilitychange', mark)
+    return () => document.removeEventListener('visibilitychange', mark)
+  }, [careView, markDisplayedRead, messagesLoaded, showCareChat])
 
   // An action can remove the control that had focus, so keyboard users continue nearby.
   useEffect(() => {
@@ -126,12 +171,12 @@ export default function BackendDemo({ family, circle = null, account = null, onA
     lastReminder.current = reminderKey
   }, [family, reminder, reminderKey, remindersLoaded, senderName])
 
-  // Announce new caregiver messages once without moving focus.
+  // Announce each incoming message once without moving focus.
   useEffect(() => {
-    if (!family || !data) return
+    if (!data) return
     const messages = data.messages ?? []
     if (seenMessages.current && messageRegion.current) {
-      const fresh = messages.filter(item => !seenMessages.current.has(item.id))
+      const fresh = messages.filter(item => !seenMessages.current.has(item.id) && !isOwnMessage(item, viewerRole, account?.id))
       if (fresh.length === 1) {
         const from = firstName(fresh[0].sender)
         messageRegion.current.textContent = from ? `New message from ${from}: ${fresh[0].body}` : `New message: ${fresh[0].body}`
@@ -140,7 +185,7 @@ export default function BackendDemo({ family, circle = null, account = null, onA
       }
     }
     seenMessages.current = new Set(messages.map(item => item.id))
-  }, [data, family])
+  }, [account?.id, data, viewerRole])
 
   function handleAccessError(error) {
     if (!circle || ![401, 403].includes(error.status)) return false
@@ -249,11 +294,39 @@ export default function BackendDemo({ family, circle = null, account = null, onA
 
   async function sendMessage(text) {
     try {
-      await api.sendMessage(text)
+      await api.sendMessage(text, viewerRole)
     } catch (error) {
       handleAccessError(error)
       throw error
     }
+    // Replying means the caregiver has seen what was on screen when they sent it.
+    markDisplayedRead()
+    setRevision(value => value + 1)
+  }
+
+  function moveCareFocus(view) {
+    const main = document.getElementById('main')
+    main?.setAttribute('tabindex', '-1')
+    const target = view === 'messages' ? careChatHeading.current : view === 'account' ? careAccountHeading.current : null
+    ;(target ?? main)?.focus({ preventScroll: true })
+    window.scrollTo(0, 0)
+  }
+
+  function navigateCare(event, view) {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return
+    event.preventDefault()
+    if (view === careView) {
+      moveCareFocus(view)
+      return
+    }
+    window.history.pushState(null, '', carePath(careBase, view))
+    focusCareView.current = true
+    setRoute({ base: careBase, view })
+  }
+
+  async function clearChat() {
+    await api.clearChat()
+    setRevision(value => value + 1)
   }
 
   const helpConfirmation = caregiverName
@@ -264,25 +337,49 @@ export default function BackendDemo({ family, circle = null, account = null, onA
     : journey && continuedJourney === journey.id && !checkIn ? `Okay. Enjoy your walk to ${destination}.` : ''
   const canHelp = api.can('request_help')
   const heading = family ? 'Care dashboard' : viewerName ? `Hi, ${viewerName}` : 'Patient dashboard'
+  const canChat = api.can('read_messages') || api.can('send_messages')
+  const chat = {
+    messages: data ? data.messages : undefined,
+    viewerRole,
+    accountId: account?.id,
+    otherName: family ? firstName(recipient) || 'Patient' : caregiverName || 'Caregiver',
+    fieldName: family ? firstName(recipient) || 'patient' : caregiverName || 'caregiver',
+    canSend: api.can('send_messages'),
+    repliesReady: data?.chatReplies,
+    onSend: sendMessage,
+    onClear: api.clearChat ? clearChat : null,
+    ...(family ? { headingId: 'care-messages', headingRef: careChatHeading, draftValue: careDraft, onDraftChange: setCareDraft } : {}),
+  }
+  const careNav = family
+    ? <CareNav base={careBase} view={careView} showMessages={showCareChat} unread={unread} onNavigate={navigateCare} />
+    : null
 
   return (
-    <Shell {...shell} family={family} heading={heading}>
+    <Shell {...shell} nav={careNav} family={family} heading={heading} pageTitle={careView === 'messages' ? 'Messages · Care dashboard' : careView === 'account' ? 'Account · Care dashboard' : undefined}>
       <div ref={eventRegion} className="sr-only" role="status" aria-live="polite" aria-atomic="true" />
       <div ref={reminderRegion} className="sr-only" role="status" aria-live="polite" aria-atomic="true" />
       <div ref={messageRegion} className="sr-only" role="status" aria-live="polite" aria-atomic="true" />
       {(readError || actionError) && <p className="error-banner" role="alert">{actionError || readError}</p>}
-      {family ? (
-        <CaregiverDashboard calendar={circle ? null : calendar} emailSettings={emailSettings} loaded={Boolean(data)} helpRequests={openHelp} feed={data?.activity ?? []} feedJourney={data?.feedJourney ?? null}
+      {careView === 'messages' ? (
+        <div className="family-view">
+          {showCareChat ? <ChatPanel className="panel wide messages-panel" {...chat} /> : <p className="panel wide">Messages aren’t available for this account.</p>}
+        </div>
+      ) : careView === 'account' ? (
+        <div className="family-view">
+          <AccountPanel settings={emailSettings} openDemo={!circle} account={account} onSignOut={onSignOut} headingRef={careAccountHeading} />
+        </div>
+      ) : family ? (
+        <CaregiverDashboard calendar={circle ? null : calendar} loaded={Boolean(data)} helpRequests={openHelp} feed={data?.activity ?? []} feedJourney={data?.feedJourney ?? null}
           onAcknowledge={api.acknowledgeAlert ? acknowledgeAlert : null} helpTitle={helpTitle} journey={journey}
           reminder={reminder} sender={sender} recipient={recipient} openDemo={!circle} showCareTasks={!circle || Boolean(recipient)}
-          messages={data?.messages} can={api.can} onSendReminder={sendReminder} />
+          can={api.can} onSendReminder={sendReminder} reminderDraft={reminderDraft} onReminderDraft={setReminderDraft}
+          hiddenFeed={hiddenFeed} onHideFeed={hideFeedEntry} onRestoreFeed={restoreFeedEntry} />
       ) : (
-        <TodayScreen openDemo={!circle} checkIn={checkIn} journey={journey} help={helpSent ? help : null} reminder={reminder} sender={sender}
+        <TodayScreen checkIn={checkIn} journey={journey} help={helpSent ? help : null} reminder={reminder} sender={sender}
           calendar={circle ? null : calendar}
           viewerIsRecipient={viewerIsRecipient} caregiver={caregiver} helpLabel={helpLabel} confirmation={confirmation}
           options={options} busy={busy} controlsUnavailable={controlsUnavailable}
-          canTravel={api.can('start_journey')} canHelp={canHelp} canMessage={api.can('send_messages')}
-          caregiverName={caregiverName} onSendMessage={sendMessage}
+          canTravel={api.can('start_journey')} canHelp={canHelp} chat={canChat ? chat : null}
           onKeepGoing={keepGoing} onAskForHelp={requestHelp} onStart={startJourney} onEnd={endJourney}
           remindersRef={remindersHeading} journeyRef={journeyHeading} detailsRef={journeyDetails} />
       )}

@@ -3,8 +3,8 @@
 import { randomBytes } from 'node:crypto'
 
 const cookieName = 'fictional_session'
-const personPermissions = ['view_today', 'read_reminders', 'send_messages', 'read_journey', 'start_journey', 'read_help', 'request_help']
-const caregiverPermissions = ['view_dashboard', 'read_reminders', 'send_reminders', 'read_messages', 'read_journey', 'read_help']
+const personPermissions = ['view_today', 'read_reminders', 'read_messages', 'send_messages', 'read_journey', 'start_journey', 'read_help', 'request_help']
+const caregiverPermissions = ['view_dashboard', 'read_reminders', 'send_reminders', 'read_messages', 'send_messages', 'read_journey', 'read_help']
 const remindersOnly = ['view_dashboard', 'read_reminders']
 
 function seed() {
@@ -162,7 +162,7 @@ async function handleScoped(state, target, req, res, circle, account, rest, url)
     const text = typeof body?.body === 'string' ? body.body.trim() : ''
     if (!text || text.length > 280) return fail(res, 422, 'invalid_message', 'Write a message of 280 characters or fewer.', 'body')
     // The sender comes from the session, never from the request body.
-    const message = { id: `msg_${randomBytes(4).toString('hex')}`, body: text, created_at: new Date().toISOString(), sender: personView(state, circle, account.id, false) }
+    const message = { id: `msg_${randomBytes(4).toString('hex')}`, body: text, created_at: new Date().toISOString(), sender_role: account.id === circle.recipient ? 'patient' : 'caregiver', sender: personView(state, circle, account.id, false) }
     circle.messages = [...(circle.messages ?? []), message]
     return send(res, 201, message)
   }

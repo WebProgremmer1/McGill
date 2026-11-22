@@ -135,15 +135,18 @@ class CheckInRequest(BaseModel):
 # ---------------------------------------------------------------- demo messages
 class MessageCreate(BaseModel):
     body: str = Field(..., min_length=1, max_length=280, examples=["I got home safely."])
+    # The open demo has no login, so its role comes from the dashboard URL. Circle routes set it from the session.
+    sender_role: Literal["patient", "caregiver"] = "patient"
 
     model_config = {"str_strip_whitespace": True}
 
 
 class Message(BaseModel):
-    """An ordinary note to a caregiver. It is never an alert or a journey."""
+    """An ordinary chat message. It is never an alert or a journey."""
     id: str = Field(default_factory=lambda: new_id("msg"))
     body: str
     created_at: datetime
+    sender_role: Literal["patient", "caregiver"] = "patient"
 
 
 # ---------------------------------------------------------------- risk

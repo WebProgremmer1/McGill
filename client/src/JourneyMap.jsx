@@ -73,7 +73,7 @@ function BackupJourneyMap({ journey }) {
   )
 }
 
-function GoogleJourneyMap({ journey, onFailed }) {
+function GoogleJourneyMap({ journey, onFailed, wayfinding }) {
   const frame = useRef(null)
   const [ready, setReady] = useState(false)
   const payload = JSON.stringify({
@@ -87,19 +87,24 @@ function GoogleJourneyMap({ journey, onFailed }) {
     start: journey.start,
     destination: journey.destination,
     track: journey.track,
-    risk: { level: journey.risk.level },
+    // The Patient map stays neutral, so risk never changes its colors.
+    risk: { level: wayfinding ? 'low' : journey.risk.level },
   })
 
   useEffect(() => {
     function receive(event) {
       if (event.origin !== window.location.origin || event.source !== frame.current?.contentWindow) return
       if (event.data?.type !== 'whats-next-map' || event.data.journey !== journey.id) return
-      if (event.data.status === 'ready') setReady(true)
+      if (event.data.status === 'ready') {
+        // The viewer's off-route distance bands are monitoring detail, not wayfinding.
+        if (wayfinding) frame.current.contentWindow.eval('mk.bands.forEach(band => band.line.setMap(null))')
+        setReady(true)
+      }
       if (event.data.status === 'failed') onFailed()
     }
     window.addEventListener('message', receive)
     return () => window.removeEventListener('message', receive)
-  }, [journey.id, onFailed])
+  }, [journey.id, onFailed, wayfinding])
 
   useEffect(() => {
     if (ready) return undefined
@@ -122,7 +127,7 @@ function GoogleJourneyMap({ journey, onFailed }) {
   )
 }
 
-export default function JourneyMap({ journey, presenter = false, onProviderChange }) {
+export default function JourneyMap({ journey, presenter = false, wayfinding = false }) {
   const [provider, setProvider] = useState('checking')
   const [googleFailed, setGoogleFailed] = useState(false)
 
@@ -134,10 +139,6 @@ export default function JourneyMap({ journey, presenter = false, onProviderChang
     return () => { active = false }
   }, [])
 
-  useEffect(() => {
-    onProviderChange?.(provider)
-  }, [onProviderChange, provider])
-
   const useBackup = useCallback(() => {
     setGoogleFailed(true)
     setProvider('backup')
@@ -147,7 +148,7 @@ export default function JourneyMap({ journey, presenter = false, onProviderChang
     <>
       <div className="journey-map" data-journey-id={journey.id} data-map-provider={provider} data-route-source={journey.route_source}>
         {provider === 'checking' && <p className="map-status">Loading map…</p>}
-        {provider === 'google' && <GoogleJourneyMap key={journey.id} journey={journey} onFailed={useBackup} />}
+        {provider === 'google' && <GoogleJourneyMap key={journey.id} journey={journey} onFailed={useBackup} wayfinding={wayfinding} />}
         {provider === 'backup' && <BackupJourneyMap journey={journey} />}
         {googleFailed && <p className="map-note" role="status">Google map unavailable. Showing the backup map.</p>}
       </div>
