@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import ChatPanel from './ChatPanel.jsx'
 import { firstName, initials, toTelHref } from './data/contacts.js'
 import { riskLabel } from './data/careFeed.js'
+import { localStart } from './data/journeyApi.js'
 import { directionSteps, HELP_ONLY_PLACE, locationText, savedPlaces } from './data/places.js'
 import Icon from './Icon.jsx'
 import JourneyMap from './JourneyMap.jsx'
@@ -200,6 +201,87 @@ export function TodayScreen({
       )}
       {chat && <ChatPanel className="today-section patient-messages" {...chat} />}
     </div>
+  )
+}
+
+const EVENT_LENGTHS = [[30, '30 min'], [60, '1 hour'], [120, '2 hours']]
+const todayInput = () => {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+}
+
+// The caregiver adds a timed event (no guests) to the connected Google Calendar.
+function AddToCalendar({ calendar, onAdd }) {
+  const [title, setTitle] = useState('')
+  const [date, setDate] = useState(todayInput)
+  const [time, setTime] = useState('')
+  const [length, setLength] = useState(60)
+  const [note, setNote] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [status, setStatus] = useState('')
+  const [added, setAdded] = useState(null)
+  if (!calendar?.connected) return null
+
+  if (!calendar.canWrite) {
+    return (
+      <div className="add-event add-event-reconnect">
+        <h3>Add to calendar</h3>
+        <p>Reconnect Google to allow adding events to the calendar.</p>
+        <a className="button secondary" href="/api/google/connect"><Icon name="signIn" />Reconnect Google</a>
+      </div>
+    )
+  }
+
+  async function submit(event) {
+    event.preventDefault()
+    if (saving) return
+    if (!title.trim() || !date || !time) {
+      setStatus(!title.trim() ? 'Give the event a title.' : 'Pick a date and a time.')
+      return
+    }
+    setSaving(true)
+    setStatus('')
+    setAdded(null)
+    try {
+      const created = await onAdd({ title: title.trim(), start: localStart(date, time), durationMin: length, note: note.trim() })
+      setAdded(created)
+      setTitle('')
+      setTime('')
+      setNote('')
+    } catch (error) {
+      setStatus(error.code === 'calendar_write_not_allowed' ? 'Reconnect Google to allow adding events.'
+        : error.status === 422 ? 'Check the title, date and time, then try again.'
+          : error.message || 'The event wasn’t added. Try again.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const clear = () => { setStatus(''); setAdded(null) }
+  return (
+    <form className="add-event reminder-form" onSubmit={submit} aria-labelledby="add-event-title">
+      <h3 id="add-event-title">Add to calendar</h3>
+      <label htmlFor="add-event-what">What</label>
+      <input id="add-event-what" type="text" maxLength="100" placeholder="Doctor appointment" value={title}
+        onChange={event => { setTitle(event.target.value); clear() }} />
+      <div className="add-event-when">
+        <div><label htmlFor="add-event-date">Date</label>
+          <input id="add-event-date" type="date" value={date} onChange={event => { setDate(event.target.value); clear() }} /></div>
+        <div><label htmlFor="add-event-time">Time</label>
+          <input id="add-event-time" type="time" value={time} onChange={event => { setTime(event.target.value); clear() }} /></div>
+        <div><label htmlFor="add-event-length">Length</label>
+          <select id="add-event-length" value={length} onChange={event => setLength(Number(event.target.value))}>
+            {EVENT_LENGTHS.map(([minutes, label]) => <option key={minutes} value={minutes}>{label}</option>)}
+          </select></div>
+      </div>
+      <label htmlFor="add-event-note">Note (optional)</label>
+      <textarea id="add-event-note" rows="2" maxLength="500" value={note} onChange={event => { setNote(event.target.value); clear() }} />
+      <button type="submit" className="button primary" aria-disabled={saving}><Icon name="calendar" />{saving ? 'Adding…' : 'Add to calendar'}</button>
+      <p className="form-status" role="status">
+        {added ? <>Added: {added.title}, {eventTime({ start: added.start, all_day: false })}
+          {added.link && <> · <a href={added.link} target="_blank" rel="noreferrer">Open in Google Calendar</a></>}</> : status}
+      </p>
+    </form>
   )
 }
 
@@ -433,7 +515,7 @@ export function AccountPanel({ settings, openDemo, account, onSignOut, headingRe
 }
 
 export function CaregiverDashboard({
-  calendar, loaded, helpRequests = [], feed = [], feedJourney = null, onAcknowledge = null, helpTitle, journey, reminder, sender, recipient, openDemo, showCareTasks, can, onSendReminder, onMoveLocation = null, reminderDraft, onReminderDraft, hiddenFeed, onHideFeed, onRestoreFeed,
+  calendar, loaded, helpRequests = [], feed = [], feedJourney = null, onAcknowledge = null, helpTitle, journey, reminder, sender, recipient, openDemo, showCareTasks, can, onSendReminder, onMoveLocation = null, reminderDraft, onReminderDraft, hiddenFeed, onHideFeed, onRestoreFeed, onAddEvent = null,
 }) {
   const onlyHelp = helpRequests.length === 1 ? helpRequests[0] : null
   const helpHeading = useRef(null)
@@ -468,6 +550,7 @@ export function CaregiverDashboard({
             <section className="panel care-calendar-panel" aria-labelledby="care-calendar-title">
               <SectionHeading id="care-calendar-title" icon="calendar">{patientName ? `Next on ${patientName}’s calendar` : 'Next on the patient’s calendar'}</SectionHeading>
               <CalendarReminder calendar={calendar} care />
+              {onAddEvent && <AddToCalendar calendar={calendar} onAdd={onAddEvent} />}
             </section>
           )}
         </div>

@@ -22,8 +22,28 @@ export async function readCalendarReminder() {
     request('/google/status').catch(() => null),
     request('/google/calendar/next').catch(() => ({ state: 'unavailable' })),
   ])
-  return { ...next, canConnect: Boolean(status?.configured) && !status?.connected }
+  return {
+    ...next,
+    canConnect: Boolean(status?.configured) && !status?.connected,
+    connected: Boolean(status?.connected),
+    // Connections made before "Add to calendar" existed can read events but not create them.
+    canWrite: (status?.scopes ?? []).includes(CALENDAR_WRITE_SCOPE),
+  }
 }
+
+const CALENDAR_WRITE_SCOPE = 'https://www.googleapis.com/auth/calendar.events'
+
+// date "2026-11-25" + time "10:00" in this browser's time zone -> "2026-11-25T10:00:00-05:00"
+export function localStart(date, time) {
+  const offset = -new Date(`${date}T${time}`).getTimezoneOffset()
+  const sign = offset >= 0 ? '+' : '-'
+  const pad = value => String(Math.floor(Math.abs(value))).padStart(2, '0')
+  return `${date}T${time}:00${sign}${pad(offset / 60)}:${pad(offset % 60)}`
+}
+
+// Adds one timed event to the connected Google Calendar. Resolves to { title, start, end, link }.
+export const createCalendarEvent = ({ title, start, durationMin, note }) =>
+  postJson('/google/calendar/events', { title, start, duration_min: durationMin, note: note || null })
 
 export async function readEmailSettings() {
   try {
@@ -49,6 +69,7 @@ async function request(path, options = {}) {
     const body = await response.json().catch(() => null)
     const error = new Error(body?.error?.message || `API request failed (HTTP ${response.status}).`)
     error.status = response.status
+    error.code = body?.error?.code
     throw error
   }
   return response.json()

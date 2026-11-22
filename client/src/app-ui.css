@@ -214,3 +214,20 @@ footer { max-width: 76rem; padding: 20px 24px 32px; border-top: 0; }
 .map-hint { display: flex; align-items: center; gap: 8px; padding: 10px 20px 0; color: var(--gh-dusk); font-size: 1rem; }
 .map-hint svg { flex: none; width: 20px; height: 20px; color: var(--gh-rose); }
 .journey-panel .map-hint { padding: 12px 20px 0; }
+
+/* Add to calendar (Care dashboard): fields match the reminder box. */
+.add-event { margin-top: 18px; padding-top: 18px; border-top: 1px solid rgba(91, 74, 110, .18); }
+.add-event h3 { margin: 0; font-size: 1.05rem; }
+.add-event input, .add-event select {
+  width: 100%; min-height: 44px; padding: 8px 12px; border: 2px solid var(--gh-line); border-radius: var(--ui-radius-sm);
+  background: var(--gh-cream); color: var(--gh-ink); font: inherit;
+  transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+}
+.add-event input:hover, .add-event select:hover { border-color: var(--gh-violet); }
+.add-event input:focus, .add-event select:focus { border-color: var(--gh-rose); background: #fff; box-shadow: 0 0 0 4px rgba(168, 67, 90, .15); }
+.add-event textarea { min-height: 64px; }
+.add-event-when { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 10px; }
+.add-event-when > div { display: grid; gap: 6px; min-width: 0; }
+.add-event-reconnect p { margin: 8px 0 12px; }
+@media (max-width: 480px) { .add-event-when { grid-template-columns: 1fr 1fr; } .add-event-when > div:first-child { grid-column: 1 / -1; } }
+@media (prefers-reduced-motion: reduce) { .add-event input, .add-event select { transition: none; } }

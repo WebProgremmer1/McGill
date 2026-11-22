@@ -7,7 +7,7 @@ import { useChatRead } from './data/chatRead.js'
 import { isOwnMessage } from './data/chat.js'
 import { firstName } from './data/contacts.js'
 import { useHiddenFeed } from './data/feedHidden.js'
-import { createJourneyApi, readCalendarReminder, readEmailSettings } from './data/journeyApi.js'
+import { createCalendarEvent, createJourneyApi, readCalendarReminder, readEmailSettings } from './data/journeyApi.js'
 import { destinationOptions, helpOnlyRequest } from './data/places.js'
 import Shell from './Shell.jsx'
 
@@ -282,6 +282,13 @@ export default function BackendDemo({ family, circle = null, account = null, onA
     await api.moveLocation(journey.id, latitude, longitude, new Date(time).toISOString())
   }, 'The new location didn’t save. Try again.') : null
 
+  // Saves the event, then re-reads the calendar so "Next on the calendar" updates right away.
+  async function addCalendarEvent(event) {
+    const created = await createCalendarEvent(event)
+    readCalendarReminder().then(setCalendar).catch(() => {})
+    return created
+  }
+
   async function sendReminder(text) {
     try {
       await api.sendReminder(text)
@@ -383,7 +390,8 @@ export default function BackendDemo({ family, circle = null, account = null, onA
           onAcknowledge={api.acknowledgeAlert ? acknowledgeAlert : null} helpTitle={helpTitle} journey={journey}
           reminder={reminder} sender={sender} recipient={recipient} openDemo={!circle} showCareTasks={!circle || Boolean(recipient)}
           can={api.can} onSendReminder={sendReminder} onMoveLocation={moveLocation} reminderDraft={reminderDraft} onReminderDraft={setReminderDraft}
-          hiddenFeed={hiddenFeed} onHideFeed={hideFeedEntry} onRestoreFeed={restoreFeedEntry} />
+          hiddenFeed={hiddenFeed} onHideFeed={hideFeedEntry} onRestoreFeed={restoreFeedEntry}
+          onAddEvent={circle ? null : addCalendarEvent} />
       ) : (
         <TodayScreen checkIn={checkIn} journey={journey} help={helpSent ? help : null} reminder={reminder} sender={sender}
           calendar={circle ? null : calendar}
