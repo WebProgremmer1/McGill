@@ -543,6 +543,19 @@ function showCheckin(c, jid) {
     }
   });
 }
+// The caregiver feed describes the check-in for her family.
+// (The "Hi Margaret, ..." message is what her phone shows, so it is not repeated here.)
+const CHECKIN_WHY = {
+  off_route: "she may have taken a different way",
+  repeated_revisits: "she passed the same places more than once",
+  stationary: "she stopped for a while",
+  taking_too_long: "the walk is taking longer than usual",
+};
+function checkinForCaregiver(c) {
+  // same order the backend uses to pick the phone message
+  const code = ["off_route", "repeated_revisits", "stationary", "taking_too_long"].find(k => c.reason_codes.includes(k));
+  return `We asked ${walker()} if she's okay because ${CHECKIN_WHY[code] || "her walk looked unusual"}.`;
+}
 function addEvent(cls, title, body, alertId) {
   $("noevents")?.remove();
   const li = document.createElement("li");
@@ -604,7 +617,7 @@ async function step(latlng, minute) {
   showRisk(res.risk, minute, metresOff);
   logRow(minute, metresOff, res.risk, res.risk.score - walk.score);
   walk.last = latlng; walk.minute = minute; walk.score = res.risk.score;
-  if (res.checkin_created) { showCheckin(res.checkin_created, walk.id); addEvent("chk", "Check-in sent", res.checkin_created.message); }
+  if (res.checkin_created) { showCheckin(res.checkin_created, walk.id); addEvent("chk", `Check-in sent to ${walker()}`, checkinForCaregiver(res.checkin_created)); }
   if (res.alert_created) addEvent("alert", `Risk alert · ${res.alert_created.risk_score}/100`, res.alert_created.message, res.alert_created.id);
 }
 
